@@ -1,0 +1,69 @@
+# 阶段 0/2：We-MP-RSS + campus-gateway
+#
+# ✅ we-mp-rss 的镜像名、端口、环境变量已对照上游源码核实（2026-10-05，
+#    依据 https://github.com/rachelos/we-mp-rss 的 compose/docker-compose-sqlite.yaml 与 Dockerfile）。
+#    Q6（Webhook 载荷结构）也已在同一轮读源码时关闭，见 docs/findings.md。
+#
+# 起法：
+#   cp .env.example .env    # 填好 INGEST_SHARED_SECRET 等
+#   docker compose up -d
+#   docker compose logs -f gateway
+
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # 容器内固定监听 8000；对外端口由 ports 映射决定
+      GATEWAY_HOST: 0.0.0.0
+      GATEWAY_PORT: "8000"
+      # 容器内路径，覆盖 .env 里给本机跑用的相对路径
+      DATABASE_URL: sqlite:////data/campus.db
+      DEBUG_CAPTURE_DIR: /data/captures
+      PYTHONUNBUFFERED: "1"
+      PYTHONUTF8: "1"        # Windows 宿主机看日志时中文不乱码
+    ports:
+      - "${GATEWAY_PORT:-8000}:8000"
+    volumes:
+      - ./data/gateway:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).status==200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - campus
+
+  we-mp-rss:
+    # ✅ 已核实（上游 compose/docker-compose-sqlite.yaml，2026-10-05）：镜像名 + 容器端口 8001 + DB/USERNAME/PASSWORD
+    image: ghcr.io/rachelos/we-mp-rss:latest
+    # 也可以改为从源码构建：
+    # build: ./vendor/we-mp-rss
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      PYTHONUNBUFFERED: "1"
+      # ✅ 上游用 DB（SQLAlchemy URL），不是 DB_PATH
+      DB: sqlite:///data/we_mp_rss.db
+      # ✅ 首次登录的 Web UI 账号（上游 sqlite 示例默认 admin/admin@123）
+      USERNAME: ${WEMP_RSS_USERNAME:-admin}
+      PASSWORD: ${WEMP_RSS_PASSWORD:-admin@123}
+    ports:
+      # ⚠️ 容器内监听 8001（Dockerfile EXPOSE 8001），不是 8000
+      - "${WEMP_RSS_PORT:-8001}:8001"
+    volumes:
+      - ./data/we-mp-rss:/app/data
+    depends_on:
+      gateway:
+        condition: service_healthy
+    networks:
+      - campus
+
+networks:
+  campus:
+    driver: bridge

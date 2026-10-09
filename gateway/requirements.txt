@@ -1,0 +1,15 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.8
+pydantic-settings>=2.4
+SQLAlchemy>=2.0.30
+# [socks] 是为了让 httpx 在设了 ALL_PROXY=socks5:// 的环境（本机装了 Clash 类代理）下
+# 也能构造 Client，否则 lifespan 建 AsyncClient 时会 ImportError 直接起不来。
+httpx[socks]>=0.27
+tenacity>=8.5
+python-dateutil>=2.9
+tzdata>=2024.1
+
+# dev / test
+pytest>=8.3
+pytest-asyncio>=0.24

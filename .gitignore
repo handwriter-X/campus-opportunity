@@ -1,0 +1,29 @@
+# secrets
+.env
+.env.local
+*.key
+
+# data / runtime
+data/
+*.db
+*.sqlite3
+gateway/data/
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# os / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# captures from probes may contain article text
+eval/samples/_raw/

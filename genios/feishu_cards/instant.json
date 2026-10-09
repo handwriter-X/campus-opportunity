@@ -1,0 +1,53 @@
+{
+  "config": {
+    "wide_screen_mode": true
+  },
+  "header": {
+    "template": "turquoise",
+    "title": {
+      "tag": "plain_text",
+      "content": "校园机会 · 新发现"
+    }
+  },
+  "elements": [
+    {
+      "tag": "div",
+      "text": {
+        "tag": "lark_md",
+        "content": "**南开大学第十五届程序设计竞赛**\n🏆 竞赛\n🕐 活动时间：11月2日（星期日）9:00-14:00\n⏰ **报名截止：10月20日 17:00**\n🚀 报名开始：10月8日 09:00\n👥 名额：不限\n📍 地点：计算机学院 A305\n🎯 参与对象：全校本科生"
+      }
+    },
+    {
+      "tag": "action",
+      "actions": [
+        {
+          "tag": "button",
+          "text": {
+            "tag": "plain_text",
+            "content": "立即报名"
+          },
+          "type": "primary",
+          "url": "https://example.nankai.edu.cn/signup"
+        },
+        {
+          "tag": "button",
+          "text": {
+            "tag": "plain_text",
+            "content": "查看原文"
+          },
+          "type": "default",
+          "url": "https://mp.weixin.qq.com/s/sample"
+        }
+      ]
+    },
+    {
+      "tag": "note",
+      "elements": [
+        {
+          "tag": "plain_text",
+          "content": "信息由 AI 从公众号原文抽取，请以原文为准"
+        }
+      ]
+    }
+  ]
+}

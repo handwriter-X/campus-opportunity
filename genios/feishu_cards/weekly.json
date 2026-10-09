@@ -1,0 +1,41 @@
+{
+  "config": {
+    "wide_screen_mode": true
+  },
+  "header": {
+    "template": "blue",
+    "title": {
+      "tag": "plain_text",
+      "content": "本周校园机会汇总"
+    }
+  },
+  "elements": [
+    {
+      "tag": "div",
+      "text": {
+        "tag": "lark_md",
+        "content": "**数学建模校内选拔赛** 🏆\n面向全校选拔参加全国大学生数学建模竞赛的队伍\n⏰ 截止 10月15日 24:00"
+      }
+    },
+    {
+      "tag": "hr"
+    },
+    {
+      "tag": "div",
+      "text": {
+        "tag": "lark_md",
+        "content": "**王教授学术讲座《人工智能前沿》** 🎓\n介绍大模型时代的研究范式变化\n⏰ 截止 无需报名"
+      }
+    },
+    {
+      "tag": "hr"
+    },
+    {
+      "tag": "div",
+      "text": {
+        "tag": "lark_md",
+        "content": "**校运动会志愿者招募** 🤝\n需要 20 名志愿者，服务时长计入志愿时长\n⏰ 截止 10月12日"
+      }
+    }
+  ]
+}

@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://campus-opportunity.local/schemas/opportunity.schema.json",
+  "title": "校园机会记录",
+  "description": "依据 docs/校园机会信息整合_最终业务字段体系.docx 第二~六节 + 施工方案 §7.2 新增字段。枚举值逐字取自文档原文，不得改写。",
+  "type": "object",
+  "required": ["items"],
+  "properties": {
+    "is_opportunity": {
+      "type": "boolean",
+      "description": "整篇文章是否包含至少一个学生可参与的机会"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "整体判断置信度"
+    },
+    "items": {
+      "type": "array",
+      "description": "文章包含的机会列表。通常只有 1 项；汇总类推文（如「本周活动一览」）会有多项。",
+      "items": { "$ref": "#/$defs/opportunity" }
+    }
+  },
+  "$defs": {
+    "opportunity": {
+      "type": "object",
+      "required": ["name", "type", "confidence", "evidence"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "机会名称。通常取原通知标题；必要时轻度规范化。"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["竞赛", "学术与学习交流", "志愿活动与社会实践", "校园文体活动"],
+          "description": "固定四分类，逐字取自字段体系文档。"
+        },
+
+        "summary": {
+          "type": ["string", "null"],
+          "description": "活动简介。只能依据原文摘要，不得补充原文不存在的事实。"
+        },
+
+        "event_time_text": {
+          "type": ["string", "null"],
+          "description": "活动时间的**原文表达**，如「每周三晚」「10月8日、15日、22日」。优先忠实保留。"
+        },
+        "event_start": {
+          "type": ["string", "null"],
+          "description": "活动开始时间，ISO 8601 带 +08:00。原文无法确定时为 null。"
+        },
+        "event_end": {
+          "type": ["string", "null"],
+          "description": "活动结束时间，ISO 8601 带 +08:00。"
+        },
+        "signup_start": {
+          "type": ["string", "null"],
+          "description": "报名开始时间（先到先得类活动的核心），ISO 8601 带 +08:00。"
+        },
+        "signup_deadline": {
+          "type": ["string", "null"],
+          "description": "报名截止时间，ISO 8601 带 +08:00。无需报名或未说明时为 null。"
+        },
+        "signup_method_text": {
+          "type": ["string", "null"],
+          "description": "报名/参与方式的原文表达，如「填写问卷」「发送邮件至…」「现场参加」「无需报名」。"
+        },
+
+        "location": {
+          "type": ["string", "null"],
+          "description": "线下地点或线上平台，如「计算机学院A305」「线上腾讯会议」。"
+        },
+        "audience": {
+          "type": ["string", "null"],
+          "description": "参与者身份、年级、专业等资格限制。统一承载年级/专业限制，不拆分独立字段。"
+        },
+        "quota": {
+          "type": ["string", "null"],
+          "description": "人数/名额要求。没有明确限制时为 null。"
+        },
+        "signup_url": {
+          "type": ["string", "null"],
+          "description": "实际报名入口链接。必须出现在原文或传入的 links 列表里。"
+        },
+
+        "gongneng_practice": {
+          "type": "string",
+          "enum": ["是", "否", "未说明", "不适用"],
+          "description": "是否计入公能实践。必须以原通知为依据，不得推测。"
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "跨类别检索标签，如 科研/保研/就业/体育/创新创业。"
+        },
+
+        "type_specific": {
+          "type": "object",
+          "description": "类型专属字段。按 type 取对应子 schema；不适用的字段不要出现。",
+          "properties": {
+            "竞赛": { "$ref": "#/$defs/competition" },
+            "学术与学习交流": { "$ref": "#/$defs/academic" },
+            "志愿活动与社会实践": { "$ref": "#/$defs/volunteer" },
+            "校园文体活动": { "$ref": "#/$defs/culture_sports" }
+          }
+        },
+
+        "evidence": {
+          "type": "object",
+          "description": "关键字段 → 原文引用片段。用于第三层「依据校验」。片段必须真实出现在原文中。",
+          "additionalProperties": { "type": "string" }
+        },
+
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "本条机会的抽取置信度。关键字段缺依据时应降低。"
+        }
+      }
+    },
+
+    "competition": {
+      "type": "object",
+      "description": "竞赛专属字段（字段体系文档第三节）",
+      "properties": {
+        "level": { "type": ["string", "null"], "description": "竞赛级别：校级/市级/省级/国家级等。原文未明确时为 null。" },
+        "field": { "type": ["string", "null"], "description": "竞赛领域/方向，如数学建模、生命科学、AI、创新创业。" },
+        "participation_form": { "type": ["string", "null"], "description": "参赛形式：个人参赛 / 团队参赛。" },
+        "team_size": { "type": ["string", "null"], "description": "团队人数要求，如「3人/队」「2-5人」。个人赛时为 null。" }
+      }
+    },
+
+    "academic": {
+      "type": "object",
+      "description": "学术与学习交流专属字段（字段体系文档第四节）。含经验分享、课程辅导、考前突击、技能培训、企业分享、交流活动。",
+      "properties": {
+        "subtype": {
+          "type": ["string", "null"],
+          "enum": ["学术报告", "经验分享", "课程辅导", "技能培训", "企业分享", "交流沙龙", "其他", null]
+        },
+        "topic": { "type": ["string", "null"], "description": "本次活动具体围绕什么内容展开。" },
+        "speaker": { "type": ["string", "null"], "description": "主讲/分享/辅导人姓名。未明确具体人员时为 null。" },
+        "speaker_info": { "type": ["string", "null"], "description": "主讲者的身份/单位/背景，如「某大学教授」「某届毕业生」。" },
+        "content_field": { "type": ["string", "null"], "description": "内容所属主题领域，如保研/升学、AI、编程。" },
+        "related_college": {
+          "type": ["string", "null"],
+          "description": "相关学院/专业。**仅在原文明确指向时记录；不得由主讲人所属单位反推。**"
+        }
+      }
+    },
+
+    "volunteer": {
+      "type": "object",
+      "description": "志愿活动与社会实践专属字段（字段体系文档第五节）",
+      "properties": {
+        "nature": { "type": ["string", "null"], "description": "活动性质：志愿活动 / 社会实践。" },
+        "content": { "type": ["string", "null"], "description": "参与者实际需要完成的任务或实践内容。可概括，不得编造。" },
+        "duration": { "type": ["string", "null"], "description": "预计参与所需时长，如「4小时」「3天」「一周」。" },
+        "service_hours": { "type": ["string", "null"], "description": "可认定的志愿服务小时数。**只有原文明确说明时记录。**" },
+        "special_requirements": { "type": ["string", "null"], "description": "技能、证书、语言、体力等额外要求。原文未说明时不推断。" }
+      }
+    },
+
+    "culture_sports": {
+      "type": "object",
+      "description": "校园文体活动专属字段（字段体系文档第六节）",
+      "properties": {
+        "project": { "type": ["string", "null"], "description": "活动具体项目，如篮球、羽毛球、歌唱、摄影、桌游。" },
+        "form": { "type": ["string", "null"], "description": "活动形式：比赛/演出/体验/交流。与竞赛的「参赛形式」含义不同。" },
+        "rewards": { "type": ["string", "null"], "description": "奖品、奖状、积分等奖励信息。原文无奖励说明时为 null。" }
+      }
+    }
+  }
+}
