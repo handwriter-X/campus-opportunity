@@ -175,26 +175,68 @@ docker run -d --name we-mp-rss --restart unless-stopped \
 
 ---
 
-## 五、凭据清单
+## 五、移交清单
 
-**全部放 `.env`，绝不进代码、日志、仓库**（`.gitignore` 已挡，但别依赖它）。
+> **先说清楚一件事**：这个仓库里**没有凭据**——这是刻意的（密钥不进仓库是铁律）。
+> 所以**光拿到代码是跑不通端到端的**。这一节写清楚：哪些东西要私下交接、哪些要在平台上自己配。
+
+### A. 必须**私下**给接收方的东西（不在仓库里）
+
+| 东西 | 为什么不能进仓库 | 怎么给 |
+| --- | --- | --- |
+| `.env` 的内容 | 里面是真实密钥 | 当面/加密渠道，**别走聊天工具、别截图** |
+| GeniOS 平台账号权限 | 平台内的资源 | 在平台上给对方开权限，或让对方自己发布 |
+| 飞书自建应用的管理员权限 | 同上 | 飞书开放平台 → 应用 → 添加协作者 |
+| 一个能登录**公众号后台**的微信号 | 人的资源 | — |
+| 一个**个人微信**（做微信读书授权） | 同上 | — |
+
+> ⚠️ 交接 `.env` 之后，**建议把里面所有密钥轮换一遍**——因为密钥在交接过程中多经了一手。
+
+### B. 接收方要在**三个平台**上各做一遍的事
+
+| 平台 | 要做什么 | 参照 |
+| --- | --- | --- |
+| **GeniOS** | 新建工作流（Start 9 参数 → 大模型 → End）→ 发布为**流程编排型**智能体 → 在「后端服务 API」建密钥 | `docs/genios_workflow_spec.md` + `genios/prompts/step1_extract.md` |
+| **飞书** | 建**自建应用** → 开机器人能力 → 开 `im:message` 权限 → 发布版本 → 拿到 App ID/Secret | `HANDOVER.md` 第四节 |
+| **微信** | We-MP-RSS 里做**两次扫码授权**（公众号后台 + 微信读书）→ 建消息任务 | `HANDOVER.md` 第四节 |
+
+**这三件都是「人」的活，agent 替不了。** 尤其 GeniOS 那步——工作流活在平台上，仓库里只有提示词和搭建说明。
+
+### C. 凭据清单（全部放 `.env`）
 
 | 类别 | 键名 | 从哪来 |
 | --- | --- | --- |
 | gateway 内部 | `INGEST_SHARED_SECRET` | 自己随机生成，We-MP-RSS 和 gateway 双方约定 |
 | gateway 内部 | `INTERNAL_SHARED_SECRET` | 自己随机生成 |
-| GeniOS | `GENIOS_APP_ID` / `GENIOS_API_KEY` | GeniOS 平台「后端服务 API」页面（**流程编排型**智能体才有） |
-| GeniOS | `GENIOS_API_BASE_URL` / `GENIOS_API_PATH` | 见 `.env` 里已填的实测值 |
+| GeniOS | `GENIOS_APP_ID` / `GENIOS_API_KEY` | GeniOS「后端服务 API」页面（**流程编排型**才有） |
+| GeniOS | `GENIOS_API_BASE_URL` / `GENIOS_API_PATH` | `.env.example` 里有实测值可直接用 |
 | 飞书 | `FEISHU_APP_ID` / `FEISHU_APP_SECRET` | 飞书开放平台 → 自建应用 |
 | 飞书 | `FEISHU_NOTIFY_TARGET` | 收消息的人（`ou_…`）或群（`oc_…`） |
 
-获取 `ou_`/`oc_` 的办法：让目标用户/群给机器人发一条消息，长连接探针会把事件（含 `open_id`）打到
-`data/captures/feishu_events.jsonl`。
+`.env.example` 里所有键都带了注释，**照着一项项填**即可。
+
+**`ou_`/`oc_` 怎么拿**：让目标用户（或群里 @ 机器人）发一条消息，长连接探针会把事件打到
+`data/captures/feishu_events.jsonl`，里面有 `sender_open_id`：
 
 ```bash
 env -u ALL_PROXY -u all_proxy -u HTTPS_PROXY -u https_proxy \
   .venv/bin/python scripts/feishu_longconn_probe.py
 ```
+
+### D. 验收检查点：怎么确认真的跑通了
+
+按顺序做，**卡在哪一步就知道缺什么**：
+
+| # | 做什么 | 期望结果 | 不通过说明缺什么 |
+| --- | --- | --- | --- |
+| 1 | `cd gateway && ../.venv/bin/pytest -q` | `109 passed` | 环境问题（十有八九是代理，见第八节） |
+| 2 | 起服务，`curl /health` | `genios_configured: true`、`genios_dry_run: false` | `.env` 的 GeniOS 凭据没填对 |
+| 3 | `scripts/probe_genios.py --dry-run` 后去掉 `--dry-run` 真跑 | 返回 `runId`（HTTP 200） | GeniOS 的 APPID/密钥不对，或智能体**没发布/没开 API 服务** |
+| 4 | `scripts/feishu_send.py --to <你的open_id> --text "test"` | 飞书收到消息 | 飞书应用权限没开或版本没发布 |
+| 5 | 往 `/ingest` POST 一份 `eval/samples/webhook_payload_*.json` | 日志出现「入库 → 派发 → 推送」，飞书收到汇总 | 看日志卡在哪一步 |
+
+> 💡 第 5 步是最有价值的：它**不依赖采集端**，直接验证「入站 → GeniOS → 落库 → 推送」这整条链路。
+> 采集端（We-MP-RSS）可以最后再配。
 
 > ⚠️ `.env` 里存的是**真实凭据**。别提交、别截图、别贴进聊天记录。
 
