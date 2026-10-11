@@ -1,9 +1,10 @@
-# 阶段 3 · GeniOS 工作流搭建说明（v1，以「打通链路」为目标）
+# 阶段 3 · GeniOS 工作流搭建说明（v2，代码节点校验版）
 
 > **给 [人]**：这份文档是逐节点的搭建手册。每个节点写清了「放什么、连什么、粘什么内容」。
 > 全部可粘贴内容都在 `genios/` 目录里，本文只写「怎么装」。
 >
-> **本版目标**：**先打通整条链路**，所以刻意用**单大模型节点**同时做「判断 + 抽取」。
+> **本版目标**：保留当前已经跑通的单大模型节点，同时把三层校验接回 GeniOS 代码节点。
+> worker 只接收 End 的清洗结果并入库，不再让工作流通过 HTTP 节点回写。
 > 跑通之后，再按 PLAN §6 演进成「大模型1 分类 → 循环 → 大模型2 按类型抽取」的两段式。
 >
 > ⚠️ 界面描述来自实测与推断。**和你看到的不一样时以你看到的为准，截图给我。**
@@ -20,10 +21,8 @@
 | 代码节点 = Python 3.10，支持 json/re/datetime/zoneinfo | ✅ Q3 已验证 |
 | 代码节点契约 | ✅ 必须定义 `def handler(inputs): ... return {...}` |
 
-**gateway 地址**：GeniOS 的 HTTP 节点要打到的地址。当前测试期用的是临时隧道，
-正式环境换成网关的真实地址。探针期 URL 见 `docs/findings.md` 的 S5 一节。
-
-**共享密钥**：HTTP 节点要带的请求头 `X-Internal-Secret: <见 .env 的 INTERNAL_SHARED_SECRET>`。
+**GeniOS API 配置**：由 gateway 的 `.env` 提供。工作流只需把 End 结果返回给调用方，
+不再配置 HTTP 节点访问 gateway；探针期的临时隧道仅用于早期连通性实验。
 
 ---
 
@@ -46,12 +45,7 @@
      │  输入要连两个上游：大模型节点 + Start（校验需要原文）
      ▼
 ┌─────────────────┐
-│ 选择器（可选）   │  item_count == 0 → 走 End，不回写
-└────┬────────────┘
-     ▼
-┌─────────────────┐
-│ HTTP 请求节点    │  POST <gateway>/opportunities
-│                 │  请求体 = 代码节点输出的 items[0]
+│ 选择器（可选）   │  item_count == 0 → 走 End，不产生机会
 └────┬────────────┘
      ▼
 ┌─────────┐
@@ -82,7 +76,7 @@
 
 | 变量名 | 变量类型 | 必须 | 描述 |
 | --- | --- | --- | --- |
-| `article_id` | 字符串 | ✅ 是 | 文章指纹（sha256），回写时必须带回去 |
+| `article_id` | 字符串 | ✅ 是 | 文章指纹（sha256），End 返回时必须带回去 |
 | `mode` | 字符串 | 否 | `live` / `backfill`；`backfill` 表示历史文章，不推送 |
 | `source` | 字符串 | 否 | 公众号名，如「NKU计算机」 |
 | `title` | 字符串 | 否 | 原文标题 |
@@ -120,7 +114,7 @@
 **为什么必须连 Start**：第三层「依据校验」要拿抽取出的原文片段去**原文里做子串匹配**，
 没有原文就校验不了。代码里的 `_collect()` 会递归扫描输入结构，所以平铺还是嵌套都能找到。
 
-**输出**（键名已对齐 gateway，HTTP 节点可原样转发）：
+**输出**（键名已对齐 gateway，End 节点可原样返回）：
 
 ```json
 {"ok": true, "is_opportunity": true, "article_id": "…",
@@ -131,57 +125,57 @@
 
 ### 2.4 选择器节点（可选但建议）
 
-条件：`代码节点.item_count == 0` → 直接走 End（非机会文章，不回写）。
+条件：`代码节点.item_count == 0` → 直接走 End（非机会文章，不产生机会）。
 这样非机会文章不会在库里留下空记录。
 
-### 2.5 HTTP 请求节点
+### 2.5 End 节点与 worker 交接
 
-```
-方法：POST
-URL：  <gateway 地址>/opportunities
-Header：
-  Content-Type: application/json
-  X-Internal-Secret: <见 .env 的 INTERNAL_SHARED_SECRET>
-Body： 代码节点输出的 items[0]
-```
-
-> ⚠️ **`X-Internal-Secret` 必须带**。gateway 的 `/opportunities` 是**要鉴权**的（402/401），
-> 不带会直接被拒。这和探针期的 `/_debug/echo`（免鉴权）不同。
-
-**响应**：
+End 节点原样返回代码节点对象，至少保留以下字段：
 
 ```json
-{"ok": true, "created": true, "duplicate": false,
- "push_status": "未推送", "low_confidence": false, "status": "可参与", "…": "…"}
+{"ok": true, "is_opportunity": true, "article_id": "…",
+ "items": [{
+   "name": "…", "type": "竞赛", "event_time_raw": "…",
+   "event_start": "2026-11-02T09:00:00+08:00",
+   "signup_deadline": "2026-10-20T23:59:59+08:00",
+   "signup_deadline_raw": "…", "evidence": {},
+   "confidence": 0.9, "low_confidence": false
+ }],
+ "issues": [], "item_count": 1}
 ```
 
-`duplicate=true` 表示这条机会之前已经入库（同一活动被两个号转发），**此时不要推送**（验收第 4、5 条）。
+gateway worker 轮询 GeniOS 的 End 输出，递归找到 `items` 后逐条入库；所有机会都放在
+`items` 数组里，不要只返回 `first_item`。`first_item` 只是旧版变量选择器的便利字段，
+当前链路不会通过 HTTP 节点发送它。
+
+去重、推送与状态派生由 gateway 负责。代码节点的 `issues`、`confidence`、
+`low_confidence` 和 `date_conflict` 会随结果保留，方便后续审计。
 
 ### 2.6 飞书推送（阶段 4，本版暂不做）
 
-本版先只做到「回写 gateway」。卡片与推送见 `genios/feishu_cards/`，等 S4 验完版式再接。
+本版先只做到「End 返回清洗结果」。卡片与推送见 `genios/feishu_cards/`，由后续阶段接入。
 
 ---
 
 ## 3. 怎么测
 
 1. **先单独测大模型节点**：用 `docs/genios_s2_experiments.md` 实验 A 的输入，确认输出是纯 JSON。
-2. **再测代码节点**：直接拿上一步的输出喂进去，看 `issues` 是否为空。
-3. **整体试运行**：用 `eval/samples/` 里的真实文章，或直接让真实的公众号文章走一遍完整链路。
-4. **核对库里的结果**：`curl <gateway>/opportunities` 看记录是否正确。
+2. **再测代码节点**：同时连大模型输出和 Start，确认 `items` 只保留通过三层校验的结果。
+3. **整体试运行**：用 `eval/samples/` 里的真实文章，确认 End 返回清洗后的 `items`。
+4. **核对库里的结果**：由 worker 取回 End 结果后，再用 `curl <gateway>/opportunities` 查看记录。
 
-> 本地已验证的样例（代码节点 → gateway 全通）见 `docs/findings.md`
+> 本地已验证的样例（代码节点 → worker 入库）见 `docs/findings.md`
 > 「已用源码推导的载荷做实测」与阶段 3 相关条目。
 
 ---
 
 ## 4. 跑通之后的演进（别现在做）
 
-按 PLAN §6 升级成两段式：
+按 PLAN §6 升级成两段式（仍保留代码节点校验和 End 输出契约）：
 
 ```
 大模型1（轻量分类）→ 选择器 → 循环 items → 按 type 选抽取提示词 → 大模型2（按类型抽取）
-                                    → 代码节点（校验）→ HTTP 回写 → 分级 → 飞书推送
+                                    → 代码节点（校验）→ End → worker 入库 → 分级 → 飞书推送
 ```
 
 好处：每种类型可以有专属的抽取提示词与字段，准确率更高。
@@ -199,4 +193,4 @@ Body： 代码节点输出的 items[0]
 | `InputData` 是字符串 | gateway 侧模板已处理；手工调试时注意 |
 | 日期推算依赖发布时间 | 提示词必须真的带上 `publish_time` 与 `publish_weekday` |
 | 飞连网关有限速 | 快速连续调用会被拒，测试时放慢 |
-| HTTP 节点要带密钥 | `/opportunities` 要鉴权，不是免认证端点 |
+| 旧版 HTTP 回写节点 | 当前链路不使用；End 结果由 worker 轮询后入库 |
