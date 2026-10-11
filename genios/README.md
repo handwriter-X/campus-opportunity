@@ -4,13 +4,13 @@
 
 **逐节点的搭建手册在 `docs/genios_workflow_spec.md`** —— 先看那个。
 
-## 现状（2026-10-07 更新）
+## 现状（2026-10-11 更新）
 
 | 子目录 | 内容 | 状态 |
 | --- | --- | --- |
 | `schemas/` | 抽取结果的 JSON Schema（`opportunity.schema.json`） | ✅ **已就绪** |
 | `prompts/` | 大模型节点提示词（`step1_extract.md`，含 few-shot） | ✅ **已就绪** |
-| `code_nodes/` | 解析 + 三层校验（`parse_and_validate.py`） | ✅ **已就绪**，本地已验 |
+| `code_nodes/` | 解析 + 三层校验（`parse_and_validate.py`） | ✅ **已就绪**；应接在大模型节点与 End 之间 |
 | `feishu_cards/` | 飞书卡片 JSON | ✅ 已就绪（阶段 4 再接） |
 
 ### 阻塞是怎么解开的
@@ -30,7 +30,7 @@ prompts/step1_extract.md   →  粘进「大模型节点」，输出 JSON 字符
         ↓
 code_nodes/parse_and_validate.py  →  粘进「代码节点」，
         解析那个字符串 + 跑三层校验（格式/逻辑/依据）
-        输出键名已对齐 gateway 的 POST /opportunities，HTTP 节点可原样转发
+        输出清洗后的 items，由 End 原样返回给 gateway worker
         ↓
 schemas/opportunity.schema.json   →  提示词与校验共用的「字段字典」，
         枚举值与字段名都取自 docs/校园机会信息整合_最终业务字段体系.docx
@@ -63,7 +63,7 @@ python scripts/probe_feishu_webhook.py --card --variant weekly   # 看周报卡�
 
 ### 粘贴到 GeniOS 时要改的地方
 
-卡片里的内容现在是**写死的样例值**。在 HTTP 节点或飞书插件里要把这些位置换成上游变量：
+卡片里的内容现在是**写死的样例值**。在飞书插件或后续推送节点里要把这些位置换成上游变量：
 
 | 卡片里的位置 | 换成 |
 | --- | --- |
