@@ -2,6 +2,20 @@
 
 给接手这个仓库的 AI agent 看的。人请读 [`HANDOVER.md`](HANDOVER.md)。
 
+## Agent skills
+
+### Issue tracker
+
+Issues and specs use local Markdown files under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Triage uses the default labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This is a single-context repo. See `docs/agents/domain.md`.
+
 ---
 
 ## 这个项目是什么
@@ -114,7 +128,7 @@ env -u ALL_PROXY -u all_proxy -u HTTPS_PROXY -u https_proxy \
 | 推送方式 / 推送内容 | `gateway/app/feishu_app.py`、`worker.py::format_notification` |
 | 加配置项 | `gateway/app/config.py` + **同步 `.env.example`** |
 | 提示词 / 抽取字段 | `genios/prompts/step1_extract.md` + `genios/schemas/opportunity.schema.json` |
-| 三层校验 | `genios/code_nodes/parse_and_validate.py`（**当前未接入链路**） |
+| 三层校验 | `genios/code_nodes/parse_and_validate.py`（GeniOS 的 Code 节点） |
 
 ---
 
@@ -150,11 +164,14 @@ env -u ALL_PROXY -u all_proxy -u HTTPS_PROXY -u https_proxy \
 
 **已跑通**：完整闭环（真实文章验证过）。
 
-**写了但没接上**：
-- 三层校验（`genios/code_nodes/parse_and_validate.py`）—— **现在模型编造的字段会直接入库**
-- 飞书卡片（现在推纯文本）
+**已接入并实测**：
+- 三层校验（`genios/code_nodes/parse_and_validate.py`）—— 工作流链路为 Start → LLM → Code → End
+- GeniOS API 调用、异步轮询和正/负向样例
 
-**没做**：评测集（`eval/` 有样本，`run_eval.py` 未写）、两段式工作流、多机会文章处理。
+**仍待完成**：
+- gateway `/ingest` 对新 Code 输出的回归验证
+- 飞书卡片（当前推纯文本）
+- 评测集（`eval/` 有样本，`run_eval.py` 未写）、两段式工作流、多机会文章专项验证
 
 详细任务清单见 `HANDOVER.md` 第九节。
 
