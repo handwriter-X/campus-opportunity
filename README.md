@@ -21,7 +21,7 @@
 | 0 · 探针 | ✅ **全部关闭**（S1/S2/S3/S5/Q4/Q6/Q8 + 飞书长连接）。S4 被 S6 替代，不再需要 |
 | 1 · campus-gateway | ✅ **完成**：**109 项测试** + 端到端冒烟全过，worker 真调 GeniOS |
 | 2 · 采集端稳定性 | ✅ 自动重启、持久化卷、存活告警已就位 |
-| 3 · GeniOS 工作流 | ✅ **Start→大模型→Code→End 已跑通**；代码节点三层校验、API 调用和异步轮询均已实测 → `docs/genios_workflow_spec.md` |
+| 3 · GeniOS 工作流 | ✅ **Start→意图识别→分支→End 的门控设计已确定**；当前 v2 Start→大模型→Code→End 已跑通，Intent schema 待租户导出 → `docs/genios_workflow_spec.md` |
 | 4 · 飞书推送 | 🔄 **自建应用推送已打通**；卡片版式待接 |
 | 5 · 评测集 | ⛔ 待阶段 3 稳定后开始（`eval/` 已备样本，`run_eval.py` 未写） |
 
@@ -65,8 +65,10 @@ campus oppor/
 │  ├─ tests/                       # 109 项
 │  └─ Dockerfile
 ├─ genios/                         # 可直接粘贴到 GeniOS 平台的内容
-│  ├─ prompts/step1_extract.md     # 大模型节点提示词
-│  ├─ code_nodes/parse_and_validate.py   # 代码节点：解析 + 三层校验
+│  ├─ prompts/intent_gate.md       # 意图识别：机会/非机会门控
+│  ├─ prompts/step1_extract.md     # 机会分支的大模型节点提示词
+│  ├─ code_nodes/empty_result.py   # 非机会分支：统一空结果
+│  ├─ code_nodes/parse_and_validate.py   # 机会分支：解析 + 三层校验
 │  ├─ schemas/opportunity.schema.json    # 字段字典
 │  └─ feishu_cards/                # 飞书卡片 JSON
 ├─ scripts/                        # 探针 / 冒烟 / 发送脚本

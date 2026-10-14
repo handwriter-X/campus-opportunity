@@ -14,6 +14,7 @@ description: Create, update, inspect, and manually import this project's NK-Geni
 - 修改 `genios/code_nodes/parse_and_validate.py` 后需要把代码同步进 Code 节点。
 - 需要检查 Start → LLM → Code → End 的节点和依赖是否完整。
 - 需要准备 NK-GeniOS 的手动导入文件或排查导入格式问题。
+- 需要在字段抽取前增加“机会文章/非机会文章”的意图门控。
 
 ## 单一事实来源
 
@@ -21,6 +22,8 @@ description: Create, update, inspect, and manually import this project's NK-Geni
 
 - `genios/prompts/step1_extract.md`：LLM 系统提示词和抽取规则。
 - `genios/code_nodes/parse_and_validate.py`：代码节点的 `handler(inputs)` 和输出字段。
+- `genios/prompts/intent_gate.md`：意图识别节点的分类边界与两个意图描述。
+- `genios/code_nodes/empty_result.py`：非机会分支的统一空结果。
 - `docs/genios_workflow_spec.md`：节点输入、输出和连线契约。
 - `docs/genios_workflow_import.md`：NK-GeniOS 文档证据与人工导入步骤。
 
@@ -54,6 +57,23 @@ python scripts/create_genios_workflow.py `
 ```
 
 ## 当前工作流契约
+
+### v3 目标接线（先手动导出）
+
+```text
+Start → 意图识别
+          ├─ 机会文章 → 抽取 LLM → parse_and_validate.py ─┐
+          └─ 非机会文章 → empty_result.py ────────────────┤
+                                                           ↓
+                                                  汇合/变量聚合 → End
+```
+
+用户已选择使用意图识别先分流。机会定义为四类学生可参与机会；非机会分支返回
+`is_opportunity=false`、`items=[]`。当前仓库没有真实租户导出的 Intent 节点 schema，
+所以生成器暂时保持下面的 v2 原生结构，不能猜字段后写入导入 JSON。手动添加 Intent 后请导出 YAML，
+再更新生成器。
+
+### v2 当前生成结构
 
 生成的画布应包含四个节点和四条依赖：
 

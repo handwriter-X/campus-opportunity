@@ -31,7 +31,7 @@
 **完整的闭环，用真实文章验证过**：
 
 ```
-公众号文章 → We-MP-RSS → /ingest → worker → GeniOS(Start→大模型→Code→End)
+公众号文章 → We-MP-RSS → /ingest → worker → GeniOS(Start→意图识别→机会抽取/空结果→End)
                                               ↓ 轮询取回结果
                                         落库 + 推飞书
 ```
@@ -43,7 +43,8 @@
 
 | 东西 | 状态 |
 | --- | --- |
-| **三层校验**（`genios/code_nodes/parse_and_validate.py`） | ✅ 已接回 GeniOS Code 节点；正/负向 API 样例均已成功运行 |
+| **三层校验**（`genios/code_nodes/parse_and_validate.py`） | ✅ 已接回 GeniOS Code 节点；当前 v2 正/负向 API 样例均已成功运行 |
+| **机会文章门控**（`genios/prompts/intent_gate.md`） | 🧭 已确定使用 Intent Recognition；待当前租户手动导出真实 schema 后更新生成器 |
 | **飞书卡片** | 卡片 JSON 已有（`genios/feishu_cards/`），但推送目前发的是**纯文本** |
 | **多机会文章的处理** | 输出 Schema 已支持多个 `items`，但「本周活动一览」这类汇总推文还没有专项实测 |
 | **评测集** | `eval/samples/` 有 3 份样本，`labels/` 是空的，`run_eval.py` 没写 |
@@ -86,8 +87,8 @@
 │ GeniOS（南开平台）│       │ 飞书              │
 │ 底层是 HiAgent    │       │ （自建应用）       │
 │                  │       └──────────────────┘
-│ Start→大模型→End │
-│ 判断+抽取+校验    │
+│ Start→意图识别→分支→End │
+│ 门控+抽取/空结果+校验    │
 └──────────────────┘
 ```
 
@@ -196,7 +197,7 @@ docker run -d --name we-mp-rss --restart unless-stopped \
 
 | 平台 | 要做什么 | 参照 |
 | --- | --- | --- |
-| **GeniOS** | 新建工作流（Start 9 参数 → 大模型 → End）→ 发布为**流程编排型**智能体 → 在「后端服务 API」建密钥 | `docs/genios_workflow_spec.md` + `genios/prompts/step1_extract.md` |
+| **GeniOS** | 新建工作流（Start 9 参数 → 意图识别 → 机会抽取/非机会空结果 → 汇合 → End）→ 发布为**流程编排型**智能体 → 在「后端服务 API」建密钥 | `docs/genios_workflow_spec.md` + `genios/prompts/intent_gate.md` |
 | **飞书** | 建**自建应用** → 开机器人能力 → 开 `im:message` 权限 → 发布版本 → 拿到 App ID/Secret | `HANDOVER.md` 第四节 |
 | **微信** | We-MP-RSS 里做**两次扫码授权**（公众号后台 + 微信读书）→ 建消息任务 | `HANDOVER.md` 第四节 |
 
@@ -270,8 +271,10 @@ env -u ALL_PROXY -u all_proxy -u HTTPS_PROXY -u https_proxy \
 
 | 文件 | 粘到哪 |
 | --- | --- |
-| `prompts/step1_extract.md` | 大模型节点（含系统提示词、用户提示词、few-shot） |
-| `code_nodes/parse_and_validate.py` | 代码节点（解析 + 三层校验），已接入当前工作流 |
+| `prompts/intent_gate.md` | 意图识别节点（机会/非机会门控） |
+| `prompts/step1_extract.md` | 机会分支的大模型节点（含系统提示词、用户提示词、few-shot） |
+| `code_nodes/empty_result.py` | 非机会分支代码节点（统一空结果） |
+| `code_nodes/parse_and_validate.py` | 机会分支代码节点（解析 + 三层校验） |
 | `schemas/opportunity.schema.json` | 字段字典，提示词与校验共用 |
 | `feishu_cards/*.json` | 飞书卡片版式 |
 

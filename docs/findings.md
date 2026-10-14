@@ -1233,3 +1233,26 @@ HTTP 200，任务 `01M4NSECM7SAMWZDPRJ4RDRZH5` 最终为 `status: success`，执
 - `issues` 仅报告原文没有明确依据的 `event_end` 与 `signup_start`，对应字段被置空
 
 这证明工作流导入、API 调用、异步轮询、代码节点三层校验和 End 的结构化输出已经打通。
+
+### 11. 🧭 机会文章门控先采用意图识别（2026-10-14）
+
+用户确认把文章级判断提前到抽取 LLM 之前：
+
+```text
+Start → 意图识别
+          ├─ 机会文章 → 抽取 LLM → Code 校验 ─┐
+          └─ 非机会文章 → 空结果 Code ────────┤
+                                               ↓
+                                             End
+```
+
+机会定义固定为学生可报名、申请、招募、预约或参与的四类：`竞赛`、`学术与学习交流`、
+`志愿活动与社会实践`、`校园文体活动`。纯新闻、回顾、喜报、获奖结果、已结束活动、
+招生/政策说明和无法确认学生行动的文章判为非机会。非机会分支返回
+`is_opportunity=false`、`items=[]`，worker 正常结束但不创建机会记录。
+
+本次查阅的本地 HiAgent 文档确认：Intent 节点输出分类名称和原因，Selector 适合对已有变量做条件比较。
+因此第一道门选 Intent；Selector 以后可用于 `item_count` 等确定性路由。当前租户尚未提供包含 Intent 节点的真实导出，
+故未猜测其 JSON schema，也未修改生成器或导入 JSON。新增的 `genios/prompts/intent_gate.md`、
+`genios/code_nodes/empty_result.py` 和 `docs/genios_workflow_spec.md` 第 1.1 节记录了手动接线方案；
+待用户导出真实 YAML 后再更新生成器并补充运行证据。

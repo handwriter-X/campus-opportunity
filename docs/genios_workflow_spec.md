@@ -9,6 +9,53 @@
 >
 > ⚠️ 界面描述来自实测与推断。**和你看到的不一样时以你看到的为准，截图给我。**
 
+> **v3 门控设计（2026-10-14）**：当前租户还没有导出 Selector/Intent 的真实结构，因此本文件先给出
+> 可手动配置的接线契约，不修改生成器去猜平台 schema。请先按第 1.1 节在 GeniOS 里添加并导出真实 YAML，
+> 再把 YAML 发回仓库维护者；确认字段后才更新 `scripts/create_genios_workflow.py` 和导入 JSON。
+
+### 1.1 机会文章门控（手动接线）
+
+第一道门使用 **意图识别**，不是选择器。选择器只能比较已经存在的变量，适合后续按
+`item_count` 或 `is_opportunity` 做确定性分支；意图识别才负责从文章正文判断“机会/非机会”。
+
+```text
+Start
+  ↓
+意图识别（输入 Start.text；可选同时输入 Start.title）
+  ├─ 机会文章 → 抽取 LLM → parse_and_validate.py ─┐
+  └─ 非机会文章 → empty_result.py ────────────────┤
+                                                   ↓
+                                             变量聚合/汇合 → End
+```
+
+在当前租户的画布上配置：
+
+| 配置项 | 填写内容 |
+| --- | --- |
+| 意图识别提示词 | `genios/prompts/intent_gate.md` 的“节点指令” |
+| 输入参数 | `Start.text`；若节点支持多个输入，可另接 `Start.title` 作为上下文 |
+| 意图 1 | 名称 `机会文章`；描述见 `intent_gate.md`；连接抽取 LLM |
+| 意图 2 | 名称 `非机会文章`；描述见 `intent_gate.md`；连接 `empty_result.py` |
+| 机会分支 | 继续使用现有 `step1_extract.md` → `parse_and_validate.py` |
+| 非机会分支 | 新增 Code 节点，粘贴 `genios/code_nodes/empty_result.py`，输入接 `Start.article_id` |
+| 汇合 | 两个 Code 分支接同一个变量聚合/汇合节点，再接唯一 End；按租户界面选择“取第一个非空对象”或等价配置 |
+
+意图识别只做分类，不抽取机会字段。分类规则是：学生现在或之后可以报名、申请、招募、预约或参与，
+且属于 `竞赛`、`学术与学习交流`、`志愿活动与社会实践`、`校园文体活动` 四类之一，才选“机会文章”。
+纯新闻、表彰喜报、获奖结果、活动回顾总结、已结束活动、招生/政策说明，以及无法确认学生行动的文章，
+选“非机会文章”。边界不清时选“非机会文章”。完整提示词和意图描述见
+[`genios/prompts/intent_gate.md`](../genios/prompts/intent_gate.md)。
+
+非机会分支的 End 输出必须保持与抽取分支相同的对象形状：
+
+```json
+{"ok": false, "is_opportunity": false, "article_id": "…", "items": [],
+ "first_item": null, "issues": [], "item_count": 0}
+```
+
+worker 会正常结束这篇文章，但因为 `items` 为空而不写入机会记录。这个行为依赖现有
+`gateway/app/worker.py::extract_llm_payload` 的结果契约；当前仅有代码推导，待真实 v3 工作流运行后补实测证据。
+
 ---
 
 ## 0. 前置
