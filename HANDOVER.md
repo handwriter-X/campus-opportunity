@@ -31,7 +31,7 @@
 **完整的闭环，用真实文章验证过**：
 
 ```
-公众号文章 → We-MP-RSS → /ingest → worker → GeniOS(Start→意图识别→机会抽取/空结果→End)
+公众号文章 → We-MP-RSS → /ingest → worker → GeniOS（当前已验证：Start→大模型→Code→End；目标：加入意图识别门控）
                                               ↓ 轮询取回结果
                                         落库 + 推飞书
 ```
