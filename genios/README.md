@@ -9,7 +9,7 @@
 | 子目录 | 内容 | 状态 |
 | --- | --- | --- |
 | `schemas/` | 抽取结果的 JSON Schema（`opportunity.schema.json`） | ✅ **已就绪** |
-| `prompts/` | `intent_gate.md`（意图门控）与 `step1_extract.md`（机会抽取） | ✅ **已就绪**；Intent schema 待租户导出 |
+| `prompts/` | `intent_gate.md`（意图门控）与 `step1_extract.md`（机会抽取） | ✅ **已就绪**；Intent schema 已按真实租户 YAML 接入 |
 | `code_nodes/` | `empty_result.py`（非机会分支）与 `parse_and_validate.py`（三层校验） | ✅ **已就绪**；两条分支汇合到同一 End |
 | `feishu_cards/` | 飞书卡片 JSON | ✅ 已就绪（阶段 4 再接） |
 
@@ -42,8 +42,9 @@ schemas/opportunity.schema.json → 两条提示词与机会校验共用的字�
 - **`parse_and_validate.py`**：校验机会字段并输出完整 `items`。
 - **`empty_result.py`**：在“非机会文章”分支输出 `is_opportunity=false`、`items=[]`，让 worker 正常结束但不入机会库。
 
-当前生成器和 `*.import.json` 仍是已验证的 `Start → LLM → Code → End` v2 结构；不要手工修改生成 JSON 来猜 Intent 节点字段。
-先在租户中手动添加 Intent 节点、导出真实 YAML，再按真实 schema 更新生成器。
+当前生成器和 `*.import.json` 已生成 `Start → Intent → 分支 → 变量聚合 → End` 的七节点结构。
+Intent 节点字段、`class01`/`class_other` 分支和 `Start.text` 查询引用来自真实租户 YAML；变量聚合节点未出现在示范 YAML 中，
+其 `VariableAggregator.MergeGroups` 仍需在目标租户上传验证。若租户拒绝该节点配置，请从同一租户导出一个包含变量聚合的最小工作流，再更新生成器。
 
 ## 三层校验做了什么（`code_nodes/parse_and_validate.py`）
 

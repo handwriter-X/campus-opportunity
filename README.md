@@ -21,7 +21,7 @@
 | 0 · 探针 | ✅ **全部关闭**（S1/S2/S3/S5/Q4/Q6/Q8 + 飞书长连接）。S4 被 S6 替代，不再需要 |
 | 1 · campus-gateway | ✅ **完成**：**109 项测试** + 端到端冒烟全过，worker 真调 GeniOS |
 | 2 · 采集端稳定性 | ✅ 自动重启、持久化卷、存活告警已就位 |
-| 3 · GeniOS 工作流 | ✅ **Start→意图识别→分支→End 的门控设计已确定**；当前 v2 Start→大模型→Code→End 已跑通，Intent schema 待租户导出 → `docs/genios_workflow_spec.md` |
+| 3 · GeniOS 工作流 | 🔄 **已生成 Start→Intent→分支→变量聚合→End 导入文件**；Intent 字段按真实租户 YAML 接入，变量聚合待租户上传验证 → `docs/genios_workflow_spec.md` |
 | 4 · 飞书推送 | 🔄 **自建应用推送已打通**；卡片版式待接 |
 | 5 · 评测集 | ⛔ 待阶段 3 稳定后开始（`eval/` 已备样本，`run_eval.py` 未写） |
 

@@ -2,9 +2,11 @@
 
 The upload endpoint accepts the native workflow document emitted by GeniOS.
 The checked-in generator therefore follows the real export shape: ``Nodes``
-use ``Start``/``End``/``LLM``/``Code`` types and dependencies are stored as
-``Depends``/``NodeCode`` references.  The prompt and code-node files remain
-the single source of truth for executable content.
+use the native node type names and dependencies are stored as
+``Depends``/``NodeCode`` references. The prompt and code-node files remain
+the single source of truth for executable content. Intent fields and ports
+come from the supplied tenant export; the VariableAggregator block remains
+explicitly marked as needing upload verification.
 """
 
 from __future__ import annotations
@@ -20,6 +22,9 @@ START_ID = "db5igk54shhas0als380"
 END_ID = "db5igk54shhas0als38g"
 LLM_ID = "db5iont4shhbpg90ho1g"
 CODE_ID = "db5j46d4shhas0alssag"
+INTENT_ID = "db7q18d4shhbpg91ndfg"
+EMPTY_CODE_ID = "db7q1sd4shhbpg91ndm0"
+AGGREGATOR_ID = "db7q1ag4shhbpg91ndm1"
 
 START_FIELDS = [
     ("article_id", "string", True),
@@ -99,6 +104,9 @@ DEFAULT_MODEL_DESC = (
     "DeepSeek-V4.1是深度求索全新推出的旗舰混合推理模型，"
     "支持自适应深度思考与通用对话双模式。"
 )
+INTENT_MODEL_ID = "db46nhqldp7id25nc970"
+INTENT_MODEL_NAME = "doubao-seed-2-1-lite"
+INTENT_MODEL_DESC = "意图识别节点使用的租户模型（来自真实导出示例）"
 WORKFLOW_UPDATED_AT = "1970-01-01T00:00:00Z"
 MODEL_FEATURES = [
     "streaming",
@@ -106,6 +114,15 @@ MODEL_FEATURES = [
     "vision",
     "reasoning",
     "reasoning-effort",
+    "reasoning-switch",
+]
+INTENT_MODEL_FEATURES = [
+    "streaming",
+    "tool-call",
+    "vision",
+    "vision-video",
+    "audio",
+    "reasoning",
     "reasoning-switch",
 ]
 
@@ -165,6 +182,11 @@ def _node_ref(name: str, node_code: str, path: str) -> dict:
 
 def _depends(*node_codes: str) -> list[dict]:
     return [{"NodeCode": node_code} for node_code in node_codes]
+
+
+def _branch_dep(node_code: str, port_id: str) -> dict:
+    """Return the native dependency form for an Intent branch port."""
+    return {"NodeCode": node_code, "PortID": port_id}
 
 
 def _error_config() -> dict:
@@ -252,7 +274,8 @@ def _canonical_llm_node(system_prompt: str, model_name: str, model_type: str) ->
                 "TopP": 0.9,
             }
         },
-        "Depends": _depends(START_ID),
+        # The extraction LLM is reachable only from the positive Intent port.
+        "Depends": [_branch_dep(INTENT_ID, "class01"), {"NodeCode": START_ID}],
         "ErrorConfig": _error_config(),
         "ID": LLM_ID,
         "Layout": {"X": 767.8683821155, "Y": -20.8930962947},
@@ -261,8 +284,8 @@ def _canonical_llm_node(system_prompt: str, model_name: str, model_type: str) ->
     }
 
 
-def _canonical_code_node(code: str) -> dict:
-    output_schema = [
+def _code_output_schema() -> list[dict]:
+    return [
         _schema_field("ok", "boolean"),
         _schema_field("is_opportunity", "boolean"),
         _schema_field("article_id", "string"),
@@ -277,6 +300,9 @@ def _canonical_code_node(code: str) -> dict:
         _schema_field("issues", "list"),
         _schema_field("item_count", "integer"),
     ]
+
+
+def _canonical_code_node(code: str) -> dict:
     return {
         "Code": CODE_ID,
         "Configs": {
@@ -288,17 +314,127 @@ def _canonical_code_node(code: str) -> dict:
                 ]
                 + [_node_ref("raw_output", LLM_ID, "raw_output")],
                 "Language": 1,
-                "OutputSchema": output_schema,
+                "OutputSchema": _code_output_schema(),
                 "Retries": 0,
                 "TimeoutSeconds": 120,
             }
         },
-        "Depends": _depends(LLM_ID, START_ID),
+        "Depends": [
+            _branch_dep(INTENT_ID, "class01"),
+            {"NodeCode": LLM_ID},
+            {"NodeCode": START_ID},
+        ],
         "ErrorConfig": _error_config(),
         "ID": CODE_ID,
         "Layout": {"X": 1130.5280264347, "Y": 123.8514492921},
         "Name": "代码01",
         "Type": "Code",
+    }
+
+
+def _canonical_empty_code_node(code: str) -> dict:
+    return {
+        "Code": EMPTY_CODE_ID,
+        "Configs": {
+            "Code": {
+                "Code": code,
+                "InputVariables": [_node_ref("article_id", START_ID, "article_id")],
+                "Language": 1,
+                "OutputSchema": _code_output_schema(),
+                "Retries": 0,
+                "TimeoutSeconds": 120,
+            }
+        },
+        "Depends": [
+            _branch_dep(INTENT_ID, "class_other"),
+            {"NodeCode": START_ID},
+        ],
+        "ErrorConfig": _error_config(),
+        "ID": EMPTY_CODE_ID,
+        "Layout": {"X": 1130.5280264347, "Y": 500.0},
+        "Name": "代码02（非机会空结果）",
+        "Type": "Code",
+    }
+
+
+def _canonical_intent_node(system_prompt: str, model_name: str, model_type: str) -> dict:
+    model_id = model_type.strip() or INTENT_MODEL_ID
+    selected_model_name = model_name.strip() or INTENT_MODEL_NAME
+    return {
+        "Code": INTENT_ID,
+        "Configs": {
+            "Intent": {
+                "EnableChatHistories": False,
+                "Intentions": [
+                    {
+                        "Description": (
+                            "学生现在或之后可以报名、申请、招募、预约或参与的竞赛、"
+                            "学术与学习交流、志愿活动与社会实践、校园文体活动。"
+                        ),
+                        "Name": "机会文章",
+                        "PortID": "class01",
+                    },
+                    {
+                        "Description": (
+                            "纯新闻、表彰喜报、获奖结果、活动回顾总结、已结束活动、"
+                            "招生或政策说明，或没有明确学生参与行动的文章。"
+                        ),
+                        "Name": "Others",
+                        "PortID": "class_other",
+                    },
+                ],
+                "MaxTokens": 1024,
+                "ModelFeatureList": list(INTENT_MODEL_FEATURES),
+                "ModelID": model_id,
+                "ModelInteractiveMode": "direct",
+                "ModelName": selected_model_name,
+                "OutputSchema": [
+                    _schema_field("classificationId", "integer", required=True),
+                    _schema_field("classificationName", "string", required=True),
+                    _schema_field("reason", "string", required=True),
+                ],
+                "QueryVariable": _node_ref("query", START_ID, "text"),
+                "ReasoningMode": False,
+                "ReasoningSwitchType": "disabled",
+                "Retries": 0,
+                "SystemPrompt": system_prompt,
+                "Temperature": 0.7,
+                "TimeoutSeconds": 360,
+                "TopP": 0.9,
+            }
+        },
+        "Depends": _depends(START_ID),
+        "ErrorConfig": _error_config(),
+        "ID": INTENT_ID,
+        "Layout": {"X": 760.0, "Y": 247.2943046358},
+        "Name": "意图识别01",
+        "Type": "Intent",
+    }
+
+
+def _canonical_aggregator_node() -> dict:
+    return {
+        "Code": AGGREGATOR_ID,
+        "Configs": {
+            "VariableAggregator": {
+                "MergeGroups": [
+                    {
+                        "Name": f"Group{index}",
+                        "Variables": [
+                            _node_ref(f"positive_{name}", CODE_ID, name),
+                            _node_ref(f"negative_{name}", EMPTY_CODE_ID, name),
+                        ],
+                    }
+                    for index, (name, _value_type) in enumerate(CODE_OUTPUTS, start=1)
+                ]
+            }
+        },
+        "Depends": _depends(CODE_ID, EMPTY_CODE_ID),
+        "ErrorConfig": _error_config(),
+        "ID": AGGREGATOR_ID,
+        "Layout": {"X": 1360.0, "Y": 250.0},
+        "Name": "变量聚合01",
+        "Type": "VariableAggregator",
     }
 
 
@@ -308,13 +444,13 @@ def _canonical_end_node() -> dict:
         "Configs": {
             "End": {
                 "InputVariables": [
-                    _node_ref(name, CODE_ID, name)
-                    for name, _value_type in END_OUTPUTS
+                    _node_ref(name, AGGREGATOR_ID, f"Group{index}")
+                    for index, (name, _value_type) in enumerate(END_OUTPUTS, start=1)
                 ],
                 "OutputType": "Variable",
             }
         },
-        "Depends": _depends(START_ID, CODE_ID),
+        "Depends": _depends(AGGREGATOR_ID),
         "ErrorConfig": _error_config(),
         "ID": END_ID,
         "Layout": {"X": 1456.5760080065, "Y": 373.5885313047},
@@ -326,13 +462,19 @@ def _canonical_end_node() -> dict:
 def _canonical_workflow(
     workflow_name: str,
     workflow_id: str,
+    intent_system_prompt: str,
     system_prompt: str,
     code: str,
+    empty_code: str,
     model_name: str,
     model_type: str,
+    intent_model_name: str,
+    intent_model_type: str,
 ) -> dict:
     model_id = model_type.strip() or DEFAULT_MODEL_ID
     model_display_name = model_name.strip() or DEFAULT_MODEL_NAME
+    intent_model_id = intent_model_type.strip() or INTENT_MODEL_ID
+    intent_model_display_name = intent_model_name.strip() or INTENT_MODEL_NAME
     return {
         "DLVersion": "v2",
         "Depends": {
@@ -346,7 +488,13 @@ def _canonical_workflow(
                     "ID": model_id,
                     "LogoPath": "",
                     "Name": model_display_name,
-                }
+                },
+                intent_model_id: {
+                    "Desc": INTENT_MODEL_DESC,
+                    "ID": intent_model_id,
+                    "LogoPath": "",
+                    "Name": intent_model_display_name,
+                },
             },
             "PluginMap": {},
             "QADataSetMap": {},
@@ -354,7 +502,7 @@ def _canonical_workflow(
             "ToolMap": {},
             "WorkflowMap": {},
         },
-        "Desc": "校园机会信息抽取：LLM 抽取，Code 三层校验，End 返回结果",
+        "Desc": "校园机会信息抽取：Intent 门控，LLM 抽取，Code 三层校验，变量聚合后返回结果",
         "DisplayName": workflow_name,
         "FlowType": "Workflow",
         "ID": workflow_id,
@@ -364,8 +512,11 @@ def _canonical_workflow(
         "Nodes": [
             _canonical_start_node(),
             _canonical_end_node(),
+            _canonical_intent_node(intent_system_prompt, intent_model_name, intent_model_type),
             _canonical_llm_node(system_prompt, model_name, model_type),
             _canonical_code_node(code),
+            _canonical_empty_code_node(empty_code),
+            _canonical_aggregator_node(),
         ],
         "UniqueName": workflow_id,
         # The YAML exporter writes this zero value as numeric 0, but the JSON
@@ -388,22 +539,25 @@ def _validate_graph(graph: dict) -> None:
     if not isinstance(icon, dict) or icon.get("uri") != WORKFLOW_ICON["uri"]:
         raise ValueError("generated workflow icon must be an ObjInfo-compatible object")
     nodes = graph.get("Nodes")
-    if not isinstance(nodes, list) or len(nodes) != 4:
-        raise ValueError("generated graph must contain exactly four nodes")
+    if not isinstance(nodes, list) or len(nodes) != 7:
+        raise ValueError("generated graph must contain exactly seven nodes")
     ids = {node.get("ID") for node in nodes}
-    expected = {START_ID, LLM_ID, CODE_ID, END_ID}
+    expected = {START_ID, LLM_ID, CODE_ID, EMPTY_CODE_ID, INTENT_ID, AGGREGATOR_ID, END_ID}
     if ids != expected:
         raise ValueError(f"generated node IDs differ from expected: {ids}")
     types = [node.get("Type") for node in nodes]
     if types.count("Start") != 1 or types.count("End") != 1:
         raise ValueError("generated graph must contain exactly one start node and one end node")
-    if set(types) != {"Start", "LLM", "Code", "End"}:
+    if set(types) != {"Start", "LLM", "Intent", "Code", "VariableAggregator", "End"}:
         raise ValueError(f"generated graph contains unsupported node types: {types}")
     expected_depends = {
         START_ID: [],
-        LLM_ID: [START_ID],
-        CODE_ID: [LLM_ID, START_ID],
-        END_ID: [START_ID, CODE_ID],
+        INTENT_ID: [START_ID],
+        LLM_ID: [INTENT_ID, START_ID],
+        CODE_ID: [INTENT_ID, LLM_ID, START_ID],
+        EMPTY_CODE_ID: [INTENT_ID, START_ID],
+        AGGREGATOR_ID: [CODE_ID, EMPTY_CODE_ID],
+        END_ID: [AGGREGATOR_ID],
     }
     for node in nodes:
         actual = [item.get("NodeCode") for item in node.get("Depends", [])]
@@ -428,21 +582,32 @@ def _write_json(path: Path, payload: dict, force: bool) -> None:
 def build_workflow(args: argparse.Namespace) -> tuple[Path, Path]:
     repo_root = Path(args.repo_root).resolve()
     prompt_path = repo_root / "genios" / "prompts" / "step1_extract.md"
+    intent_prompt_path = repo_root / "genios" / "prompts" / "intent_gate.md"
     code_path = repo_root / "genios" / "code_nodes" / "parse_and_validate.py"
+    empty_code_path = repo_root / "genios" / "code_nodes" / "empty_result.py"
     output_dir = _resolve_path(repo_root, args.output_dir)
     prompt_markdown = prompt_path.read_text(encoding="utf-8")
+    intent_prompt_markdown = intent_prompt_path.read_text(encoding="utf-8")
     system_prompt = _extract_fenced_section(prompt_markdown, "## 系统提示词（整段复制）")
+    intent_system_prompt = _extract_fenced_section(
+        intent_prompt_markdown, "## 节点指令（粘贴到意图识别节点的说明/提示区域）"
+    )
     code = code_path.read_text(encoding="utf-8")
-    if not system_prompt or not code.strip():
+    empty_code = empty_code_path.read_text(encoding="utf-8")
+    if not system_prompt or not intent_system_prompt or not code.strip() or not empty_code.strip():
         raise ValueError("source prompt or code node is empty")
 
     graph = _canonical_workflow(
         args.workflow_stem,
         args.workflow_id,
+        intent_system_prompt,
         system_prompt,
         code,
+        empty_code,
         args.model_name,
         args.model_type,
+        args.intent_model_name,
+        args.intent_model_type,
     )
     _validate_graph(graph)
     import_path = output_dir / f"{args.workflow_stem}.import.json"
@@ -471,6 +636,8 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--model-name", default=DEFAULT_MODEL_NAME)
     parser.add_argument("--model-type", default=DEFAULT_MODEL_ID)
+    parser.add_argument("--intent-model-name", default=INTENT_MODEL_NAME)
+    parser.add_argument("--intent-model-type", default=INTENT_MODEL_ID)
     parser.add_argument("--force", action="store_true", help="overwrite existing generated files")
     parser.add_argument("--check", action="store_true", help="validate sources and graph without writing files")
     return parser

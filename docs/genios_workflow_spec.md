@@ -1,4 +1,4 @@
-# 阶段 3 · GeniOS 工作流搭建说明（v2，代码节点校验版）
+# 阶段 3 · GeniOS 工作流搭建说明（v3，Intent 门控与代码节点校验版）
 
 > **给 [人]**：这份文档是逐节点的搭建手册。每个节点写清了「放什么、连什么、粘什么内容」。
 > 全部可粘贴内容都在 `genios/` 目录里，本文只写「怎么装」。
@@ -9,9 +9,9 @@
 >
 > ⚠️ 界面描述来自实测与推断。**和你看到的不一样时以你看到的为准，截图给我。**
 
-> **v3 门控设计（2026-10-14）**：当前租户还没有导出 Selector/Intent 的真实结构，因此本文件先给出
-> 可手动配置的接线契约，不修改生成器去猜平台 schema。请先按第 1.1 节在 GeniOS 里添加并导出真实 YAML，
-> 再把 YAML 发回仓库维护者；确认字段后才更新 `scripts/create_genios_workflow.py` 和导入 JSON。
+> **v3 门控设计（2026-10-15）**：用户提供的当前租户 YAML 已确认 Intent 节点的字段、分支端口和查询引用，
+> 生成器已经按此结构输出七节点导入文件。示范 YAML 没有变量聚合节点，因此 `VariableAggregator.MergeGroups`
+> 是基于本地 HiAgent 文档和同一 `Configs` 命名约定生成的待上传验证部分；如果目标租户拒绝它，请导出一个包含变量聚合的最小 YAML 再回填。
 
 ### 1.1 机会文章门控（手动接线）
 
@@ -35,7 +35,7 @@ Start
 | 意图识别提示词 | `genios/prompts/intent_gate.md` 的“节点指令” |
 | 输入参数 | `Start.text`；若节点支持多个输入，可另接 `Start.title` 作为上下文 |
 | 意图 1 | 名称 `机会文章`；描述见 `intent_gate.md`；连接抽取 LLM |
-| 意图 2 | 名称 `非机会文章`；描述见 `intent_gate.md`；连接 `empty_result.py` |
+| 意图 2 | 名称 `Others`（界面可显示为非机会文章）；描述见 `intent_gate.md`；连接 `empty_result.py` |
 | 机会分支 | 继续使用现有 `step1_extract.md` → `parse_and_validate.py` |
 | 非机会分支 | 新增 Code 节点，粘贴 `genios/code_nodes/empty_result.py`，输入接 `Start.article_id` |
 | 汇合 | 两个 Code 分支接同一个变量聚合/汇合节点，再接唯一 End；按租户界面选择“取第一个非空对象”或等价配置 |
@@ -54,7 +54,7 @@ Start
 ```
 
 worker 会正常结束这篇文章，但因为 `items` 为空而不写入机会记录。这个行为依赖现有
-`gateway/app/worker.py::extract_llm_payload` 的结果契约；当前仅有代码推导，待真实 v3 工作流运行后补实测证据。
+`gateway/app/worker.py::extract_llm_payload` 的结果契约；导入后仍需用一篇机会和一篇纯新闻文章各试运行一次。
 
 ---
 
@@ -76,28 +76,11 @@ worker 会正常结束这篇文章，但因为 `items` 为空而不写入机会�
 ## 1. 节点清单与连线
 
 ```
-┌─────────┐
-│  Start  │  接收 gateway 传来的文章
-└────┬────┘
-     ▼
-┌─────────────────┐
-│ 大模型节点       │  判断是不是机会 + 抽取字段，输出 JSON
-│（输出格式=JSON） │  提示词见 genios/prompts/step1_extract.md
-└────┬────────────┘
-     ▼
-┌─────────────────┐
-│ 代码节点         │  解析 raw_output 字符串 + 三层校验
-│                 │  代码见 genios/code_nodes/parse_and_validate.py
-└────┬────────────┘
-     │  输入要连两个上游：大模型节点 + Start（校验需要原文）
-     ▼
-┌─────────────────┐
-│ 选择器（可选）   │  item_count == 0 → 走 End，不产生机会
-└────┬────────────┘
-     ▼
-┌─────────┐
-│   End   │
-└─────────┘
+Start → 意图识别
+          ├─ class01（机会） → 抽取 LLM → 代码01（三层校验） ─┐
+          └─ class_other      → 代码02（空结果） ───────────────┤
+                                                               ↓
+                                                     变量聚合 → End
 ```
 
 ---
@@ -139,7 +122,13 @@ worker 会正常结束这篇文章，但因为 `items` 为空而不写入机会�
 > `mode` 字段当前用不上（D8 决定稳态下不做 backfill 判定），但**先建着**，
 > 将来补历史语料（阶段 5）会用到。
 
-### 2.2 大模型节点
+### 2.2 意图识别节点
+
+生成文件中的 Intent 节点已经使用真实租户 YAML 的字段：`QueryVariable` 引用 `Start.text`，
+两个端口分别是 `class01` 和 `class_other`，输出 `classificationId`、`classificationName`、`reason`。
+提示词来自 `genios/prompts/intent_gate.md` 的“节点指令”代码块。
+
+### 2.3 抽取大模型节点
 
 | 配置项 | 值 |
 | --- | --- |
@@ -151,7 +140,7 @@ worker 会正常结束这篇文章，但因为 `items` 为空而不写入机会�
 ⚠️ **本节点的输出信封是 `{"raw_output": "<字符串>"}` —— 里面的 JSON 是字符串不是对象。**
 这是实测结论，也是为什么后面必须跟一个代码节点。
 
-### 2.3 代码节点
+### 2.4 机会分支代码节点
 
 | 配置项 | 值 |
 | --- | --- |
@@ -170,12 +159,24 @@ worker 会正常结束这篇文章，但因为 `items` 为空而不写入机会�
  "item_count": 1}
 ```
 
-### 2.4 选择器节点（可选但建议）
+### 2.5 非机会分支代码节点
+
+代码来自 `genios/code_nodes/empty_result.py`，只需要输入 `Start.article_id`，输出和机会分支相同的字段形状，
+其中 `is_opportunity=false`、`items=[]`。
+
+### 2.6 变量聚合节点
+
+生成器为 `ok`、`is_opportunity`、`article_id`、`items`、`issues`、`item_count` 各建立一个聚合组，
+每组变量顺序为机会分支、非机会分支，策略是取第一个非空值。该节点的 `VariableAggregator.MergeGroups`
+字段是根据文档和当前租户 `Configs` 风格生成的草案，示范 YAML 没有提供该节点的可验证序列化样本；导入后若报 schema 错误，
+请从租户导出一个带变量聚合节点的最小 YAML。
+
+### 2.7 选择器节点（可选但建议）
 
 条件：`代码节点.item_count == 0` → 直接走 End（非机会文章，不产生机会）。
 这样非机会文章不会在库里留下空记录。
 
-### 2.5 End 节点与 worker 交接
+### 2.8 End 节点与 worker 交接
 
 End 节点原样返回代码节点对象，至少保留以下字段：
 
@@ -198,7 +199,7 @@ gateway worker 轮询 GeniOS 的 End 输出，递归找到 `items` 后逐条入�
 去重、推送与状态派生由 gateway 负责。代码节点的 `issues`、`confidence`、
 `low_confidence` 和 `date_conflict` 会随结果保留，方便后续审计。
 
-### 2.6 飞书推送（阶段 4，本版暂不做）
+### 2.9 飞书推送（阶段 4，本版暂不做）
 
 本版先只做到「End 返回清洗结果」。卡片与推送见 `genios/feishu_cards/`，由后续阶段接入。
 

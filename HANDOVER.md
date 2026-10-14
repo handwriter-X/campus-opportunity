@@ -43,8 +43,8 @@
 
 | 东西 | 状态 |
 | --- | --- |
-| **三层校验**（`genios/code_nodes/parse_and_validate.py`） | ✅ 已接回 GeniOS Code 节点；当前 v2 正/负向 API 样例均已成功运行 |
-| **机会文章门控**（`genios/prompts/intent_gate.md`） | 🧭 已确定使用 Intent Recognition；待当前租户手动导出真实 schema 后更新生成器 |
+| **三层校验**（`genios/code_nodes/parse_and_validate.py`） | ✅ 已接回 GeniOS Code 节点；机会分支继续使用，非机会分支返回空结果 |
+| **机会文章门控**（`genios/prompts/intent_gate.md`） | 🔄 已按真实租户 YAML 生成 Intent 分支工作流；变量聚合节点待租户上传验证 |
 | **飞书卡片** | 卡片 JSON 已有（`genios/feishu_cards/`），但推送目前发的是**纯文本** |
 | **多机会文章的处理** | 输出 Schema 已支持多个 `items`，但「本周活动一览」这类汇总推文还没有专项实测 |
 | **评测集** | `eval/samples/` 有 3 份样本，`labels/` 是空的，`run_eval.py` 没写 |

@@ -11,6 +11,12 @@
         "ID": "d9a3s2qldp7us4m2uc6g",
         "LogoPath": "",
         "Name": "deepseek v4.1 flash"
+      },
+      "db46nhqldp7id25nc970": {
+        "Desc": "意图识别节点使用的租户模型（来自真实导出示例）",
+        "ID": "db46nhqldp7id25nc970",
+        "LogoPath": "",
+        "Name": "doubao-seed-2-1-lite"
       }
     },
     "PluginMap": {},
@@ -19,7 +25,7 @@
     "ToolMap": {},
     "WorkflowMap": {}
   },
-  "Desc": "校园机会信息抽取：LLM 抽取，Code 三层校验，End 返回结果",
+  "Desc": "校园机会信息抽取：Intent 门控，LLM 抽取，Code 三层校验，变量聚合后返回结果",
   "DisplayName": "campus_opportunity_extract",
   "FlowType": "Workflow",
   "ID": "db5igk54shhas0als37g",
@@ -151,38 +157,38 @@
           "InputVariables": [
             {
               "Name": "ok",
-              "NodeCode": "db5j46d4shhas0alssag",
-              "Path": "ok",
+              "NodeCode": "db7q1ag4shhbpg91ndm1",
+              "Path": "Group1",
               "RefType": "node_field"
             },
             {
               "Name": "is_opportunity",
-              "NodeCode": "db5j46d4shhas0alssag",
-              "Path": "is_opportunity",
+              "NodeCode": "db7q1ag4shhbpg91ndm1",
+              "Path": "Group2",
               "RefType": "node_field"
             },
             {
               "Name": "article_id",
-              "NodeCode": "db5j46d4shhas0alssag",
-              "Path": "article_id",
+              "NodeCode": "db7q1ag4shhbpg91ndm1",
+              "Path": "Group3",
               "RefType": "node_field"
             },
             {
               "Name": "items",
-              "NodeCode": "db5j46d4shhas0alssag",
-              "Path": "items",
+              "NodeCode": "db7q1ag4shhbpg91ndm1",
+              "Path": "Group4",
               "RefType": "node_field"
             },
             {
               "Name": "issues",
-              "NodeCode": "db5j46d4shhas0alssag",
-              "Path": "issues",
+              "NodeCode": "db7q1ag4shhbpg91ndm1",
+              "Path": "Group5",
               "RefType": "node_field"
             },
             {
               "Name": "item_count",
-              "NodeCode": "db5j46d4shhas0alssag",
-              "Path": "item_count",
+              "NodeCode": "db7q1ag4shhbpg91ndm1",
+              "Path": "Group6",
               "RefType": "node_field"
             }
           ],
@@ -191,10 +197,7 @@
       },
       "Depends": [
         {
-          "NodeCode": "db5igk54shhas0als380"
-        },
-        {
-          "NodeCode": "db5j46d4shhas0alssag"
+          "NodeCode": "db7q1ag4shhbpg91ndm1"
         }
       ],
       "ErrorConfig": {
@@ -207,6 +210,84 @@
       },
       "Name": "End",
       "Type": "End"
+    },
+    {
+      "Code": "db7q18d4shhbpg91ndfg",
+      "Configs": {
+        "Intent": {
+          "EnableChatHistories": false,
+          "Intentions": [
+            {
+              "Description": "学生现在或之后可以报名、申请、招募、预约或参与的竞赛、学术与学习交流、志愿活动与社会实践、校园文体活动。",
+              "Name": "机会文章",
+              "PortID": "class01"
+            },
+            {
+              "Description": "纯新闻、表彰喜报、获奖结果、活动回顾总结、已结束活动、招生或政策说明，或没有明确学生参与行动的文章。",
+              "Name": "Others",
+              "PortID": "class_other"
+            }
+          ],
+          "MaxTokens": 1024,
+          "ModelFeatureList": [
+            "streaming",
+            "tool-call",
+            "vision",
+            "vision-video",
+            "audio",
+            "reasoning",
+            "reasoning-switch"
+          ],
+          "ModelID": "db46nhqldp7id25nc970",
+          "ModelInteractiveMode": "direct",
+          "ModelName": "doubao-seed-2-1-lite",
+          "OutputSchema": [
+            {
+              "Name": "classificationId",
+              "Type": 1,
+              "Required": true
+            },
+            {
+              "Name": "classificationName",
+              "Type": 0,
+              "Required": true
+            },
+            {
+              "Name": "reason",
+              "Type": 0,
+              "Required": true
+            }
+          ],
+          "QueryVariable": {
+            "Name": "query",
+            "NodeCode": "db5igk54shhas0als380",
+            "Path": "text",
+            "RefType": "node_field"
+          },
+          "ReasoningMode": false,
+          "ReasoningSwitchType": "disabled",
+          "Retries": 0,
+          "SystemPrompt": "你是校园机会文章门控器。只根据输入文章原文选择一个意图，不做字段抽取，不补充原文没有的信息。\n\n选择“机会文章”：原文至少包含一个当前或未来仍可由学生报名、申请、招募、预约或直接参与的活动/项目，\n且类型属于竞赛、学术与学习交流、志愿活动与社会实践、校园文体活动四类之一。\n\n选择“非机会文章”：纯新闻、工作动态、表彰喜报、获奖结果、活动回顾总结、已结束活动、招生或政策说明，\n或原文没有明确学生行动机会。边界不清时选择“非机会文章”。\n\n只输出意图分类，不抽取 name、type、时间、链接等机会字段。分类依据必须来自文章本身。",
+          "Temperature": 0.7,
+          "TimeoutSeconds": 360,
+          "TopP": 0.9
+        }
+      },
+      "Depends": [
+        {
+          "NodeCode": "db5igk54shhas0als380"
+        }
+      ],
+      "ErrorConfig": {
+        "ErrorConfigType": "None"
+      },
+      "ID": "db7q18d4shhbpg91ndfg",
+      "Layout": {
+        "X": 760.0,
+        "Y": 247.2943046358
+      },
+      "Name": "意图识别01",
+      "Type": "Intent"
     },
     {
       "Code": "db5iont4shhbpg90ho1g",
@@ -308,6 +389,10 @@
         }
       },
       "Depends": [
+        {
+          "NodeCode": "db7q18d4shhbpg91ndfg",
+          "PortID": "class01"
+        },
         {
           "NodeCode": "db5igk54shhas0als380"
         }
@@ -525,6 +610,10 @@
       },
       "Depends": [
         {
+          "NodeCode": "db7q18d4shhbpg91ndfg",
+          "PortID": "class01"
+        },
+        {
           "NodeCode": "db5iont4shhbpg90ho1g"
         },
         {
@@ -541,6 +630,301 @@
       },
       "Name": "代码01",
       "Type": "Code"
+    },
+    {
+      "Code": "db7q1sd4shhbpg91ndm0",
+      "Configs": {
+        "Code": {
+          "Code": "\"\"\"GeniOS 非机会分支的统一空结果节点。\n\n把意图识别判为“非机会”的文章转换为与抽取/校验分支相同的 End 输出契约。\n该节点只负责结果形状，不重新判断文章内容，也不写入数据库。\n\"\"\"\n\nimport json\n\n\ndef _collect(obj, keys, found=None):\n    \"\"\"递归读取 GeniOS 连线输入，兼容平铺字典和字符串 JSON 信封。\"\"\"\n    if found is None:\n        found = {}\n    if isinstance(obj, str):\n        text = obj.strip()\n        if text[:1] in \"{[\":\n            try:\n                _collect(json.loads(text), keys, found)\n            except (TypeError, ValueError):\n                pass\n        return found\n    if isinstance(obj, dict):\n        for key, value in obj.items():\n            if key in keys and key not in found:\n                found[key] = value\n            _collect(value, keys, found)\n    elif isinstance(obj, list):\n        for value in obj:\n            _collect(value, keys, found)\n    return found\n\n\ndef handler(inputs):\n    \"\"\"GeniOS 代码节点入口：返回非机会文章的结构化空结果。\"\"\"\n    collected = _collect(inputs, {\"article_id\"})\n    return {\n        \"ok\": False,\n        \"is_opportunity\": False,\n        \"article_id\": collected.get(\"article_id\"),\n        \"items\": [],\n        \"first_item\": None,\n        \"issues\": [],\n        \"item_count\": 0,\n    }\n",
+          "InputVariables": [
+            {
+              "Name": "article_id",
+              "NodeCode": "db5igk54shhas0als380",
+              "Path": "article_id",
+              "RefType": "node_field"
+            }
+          ],
+          "Language": 1,
+          "OutputSchema": [
+            {
+              "Name": "ok",
+              "Type": 2
+            },
+            {
+              "Name": "is_opportunity",
+              "Type": 2
+            },
+            {
+              "Name": "article_id",
+              "Type": 0
+            },
+            {
+              "Name": "items",
+              "SubParameters": [
+                {
+                  "Name": "name",
+                  "Type": 0
+                },
+                {
+                  "Name": "type",
+                  "Type": 0
+                },
+                {
+                  "Name": "summary",
+                  "Type": 0
+                },
+                {
+                  "Name": "event_time_raw",
+                  "Type": 0
+                },
+                {
+                  "Name": "event_start",
+                  "Type": 0
+                },
+                {
+                  "Name": "event_end",
+                  "Type": 0
+                },
+                {
+                  "Name": "signup_start",
+                  "Type": 0
+                },
+                {
+                  "Name": "signup_deadline",
+                  "Type": 0
+                },
+                {
+                  "Name": "signup_deadline_raw",
+                  "Type": 0
+                },
+                {
+                  "Name": "location",
+                  "Type": 0
+                },
+                {
+                  "Name": "audience",
+                  "Type": 0
+                },
+                {
+                  "Name": "quota",
+                  "Type": 0
+                },
+                {
+                  "Name": "signup_method",
+                  "Type": 0
+                },
+                {
+                  "Name": "signup_url",
+                  "Type": 0
+                },
+                {
+                  "Name": "gongneng_practice",
+                  "Type": 0
+                },
+                {
+                  "Name": "source_url",
+                  "Type": 0
+                },
+                {
+                  "Name": "source_account",
+                  "Type": 0
+                },
+                {
+                  "Name": "confidence",
+                  "Type": 3
+                },
+                {
+                  "Name": "low_confidence",
+                  "Type": 2
+                },
+                {
+                  "Name": "evidence",
+                  "Type": 4
+                },
+                {
+                  "Name": "tags",
+                  "Type": 5
+                },
+                {
+                  "Name": "extra",
+                  "Type": 4
+                },
+                {
+                  "Name": "article_id",
+                  "Type": 0
+                },
+                {
+                  "Name": "publish_time",
+                  "Type": 0
+                },
+                {
+                  "Name": "date_conflict",
+                  "Type": 5
+                }
+              ],
+              "Type": 9
+            },
+            {
+              "Name": "issues",
+              "Type": 5
+            },
+            {
+              "Name": "item_count",
+              "Type": 1
+            }
+          ],
+          "Retries": 0,
+          "TimeoutSeconds": 120
+        }
+      },
+      "Depends": [
+        {
+          "NodeCode": "db7q18d4shhbpg91ndfg",
+          "PortID": "class_other"
+        },
+        {
+          "NodeCode": "db5igk54shhas0als380"
+        }
+      ],
+      "ErrorConfig": {
+        "ErrorConfigType": "None"
+      },
+      "ID": "db7q1sd4shhbpg91ndm0",
+      "Layout": {
+        "X": 1130.5280264347,
+        "Y": 500.0
+      },
+      "Name": "代码02（非机会空结果）",
+      "Type": "Code"
+    },
+    {
+      "Code": "db7q1ag4shhbpg91ndm1",
+      "Configs": {
+        "VariableAggregator": {
+          "MergeGroups": [
+            {
+              "Name": "Group1",
+              "Variables": [
+                {
+                  "Name": "positive_ok",
+                  "NodeCode": "db5j46d4shhas0alssag",
+                  "Path": "ok",
+                  "RefType": "node_field"
+                },
+                {
+                  "Name": "negative_ok",
+                  "NodeCode": "db7q1sd4shhbpg91ndm0",
+                  "Path": "ok",
+                  "RefType": "node_field"
+                }
+              ]
+            },
+            {
+              "Name": "Group2",
+              "Variables": [
+                {
+                  "Name": "positive_is_opportunity",
+                  "NodeCode": "db5j46d4shhas0alssag",
+                  "Path": "is_opportunity",
+                  "RefType": "node_field"
+                },
+                {
+                  "Name": "negative_is_opportunity",
+                  "NodeCode": "db7q1sd4shhbpg91ndm0",
+                  "Path": "is_opportunity",
+                  "RefType": "node_field"
+                }
+              ]
+            },
+            {
+              "Name": "Group3",
+              "Variables": [
+                {
+                  "Name": "positive_article_id",
+                  "NodeCode": "db5j46d4shhas0alssag",
+                  "Path": "article_id",
+                  "RefType": "node_field"
+                },
+                {
+                  "Name": "negative_article_id",
+                  "NodeCode": "db7q1sd4shhbpg91ndm0",
+                  "Path": "article_id",
+                  "RefType": "node_field"
+                }
+              ]
+            },
+            {
+              "Name": "Group4",
+              "Variables": [
+                {
+                  "Name": "positive_items",
+                  "NodeCode": "db5j46d4shhas0alssag",
+                  "Path": "items",
+                  "RefType": "node_field"
+                },
+                {
+                  "Name": "negative_items",
+                  "NodeCode": "db7q1sd4shhbpg91ndm0",
+                  "Path": "items",
+                  "RefType": "node_field"
+                }
+              ]
+            },
+            {
+              "Name": "Group5",
+              "Variables": [
+                {
+                  "Name": "positive_issues",
+                  "NodeCode": "db5j46d4shhas0alssag",
+                  "Path": "issues",
+                  "RefType": "node_field"
+                },
+                {
+                  "Name": "negative_issues",
+                  "NodeCode": "db7q1sd4shhbpg91ndm0",
+                  "Path": "issues",
+                  "RefType": "node_field"
+                }
+              ]
+            },
+            {
+              "Name": "Group6",
+              "Variables": [
+                {
+                  "Name": "positive_item_count",
+                  "NodeCode": "db5j46d4shhas0alssag",
+                  "Path": "item_count",
+                  "RefType": "node_field"
+                },
+                {
+                  "Name": "negative_item_count",
+                  "NodeCode": "db7q1sd4shhbpg91ndm0",
+                  "Path": "item_count",
+                  "RefType": "node_field"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "Depends": [
+        {
+          "NodeCode": "db5j46d4shhas0alssag"
+        },
+        {
+          "NodeCode": "db7q1sd4shhbpg91ndm0"
+        }
+      ],
+      "ErrorConfig": {
+        "ErrorConfigType": "None"
+      },
+      "ID": "db7q1ag4shhbpg91ndm1",
+      "Layout": {
+        "X": 1360.0,
+        "Y": 250.0
+      },
+      "Name": "变量聚合01",
+      "Type": "VariableAggregator"
     }
   ],
   "UniqueName": "db5igk54shhas0als37g",
