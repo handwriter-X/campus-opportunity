@@ -40,6 +40,16 @@ Start
 | 非机会分支 | 新增 Code 节点，粘贴 `genios/code_nodes/empty_result.py`，输入接 `Start.article_id` |
 | 汇合 | 租户不支持 `VariableAggregator`；两个 Code 都输出 `result` 对象，End 分别接 `opportunity_result` 与 `non_opportunity_result` |
 
+**门控依赖的租户约束（已实测）**：带 `PortID` 的分支节点只能把该分支作为自己的触发依赖，
+不要再同时加入 `Start` 依赖。当前租户会把同一节点的多个 `Depends` 项当成可触发入口；
+如果抽取 LLM 仍依赖 `Start`，它会绕过 Intent，在 `class_other` 分支也执行。正确依赖是：
+
+```text
+Intent(class01) → 抽取 LLM → 代码01
+Intent(class_other) → 代码02
+代码01 或 代码02 → End
+```
+
 意图识别只做分类，不抽取机会字段。分类规则是：学生现在或之后可以报名、申请、招募、预约或参与，
 且属于 `竞赛`、`学术与学习交流`、`志愿活动与社会实践`、`校园文体活动` 四类之一，才选“机会文章”。
 纯新闻、表彰喜报、获奖结果、活动回顾总结、已结束活动、招生/政策说明，以及无法确认学生行动的文章，

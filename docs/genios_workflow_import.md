@@ -2,8 +2,8 @@
 
 ## 文件
 
-- `genios/workflows/campus_opportunity_extract_gated.import.json`：当前租户门控工作流的首选导入文件。
-- `genios/workflows/campus_opportunity_extract_gated.graph.json`：同一份原生结构的检查副本，不是另一种导入格式。
+- `genios/workflows/campus_opportunity_extract_gated_v2.import.json`：当前租户门控工作流的首选导入文件。
+- `genios/workflows/campus_opportunity_extract_gated_v2.graph.json`：同一份原生结构的检查副本，不是另一种导入格式。
 - `scripts/create_genios_workflow.py`：项目级生成入口，从当前提示词和代码节点重新生成上述两个文件。
 - `scripts/build_genios_workflow_import.py`：旧入口，保留为兼容包装；新命令请使用 `create_genios_workflow.py`。
 - `scripts/wizard_genios_import.sh`：逐步引导人工登录、上传、核对和试运行。
@@ -41,7 +41,7 @@ bash scripts/wizard_genios_import.sh
 向导不会代替登录、点击导入或发布；它只打开登录页并逐步提示你操作。
 
 1. 打开 NK-GeniOS 的工作流管理页面，选择“导入工作流”。
-2. 首先选择 `genios/workflows/campus_opportunity_extract_gated.import.json`。
+2. 首先选择 `genios/workflows/campus_opportunity_extract_gated_v2.import.json`。
 3. 工作流名称填写 `校园机会信息抽取`，导入后打开画布。
 4. 在“大模型节点”确认当前租户可用的模型，确认输出格式为 JSON、温度为 0.05。
 5. 检查六节点依赖：Start→Intent；`class01`→LLM→机会 Code；`class_other`→空结果 Code；

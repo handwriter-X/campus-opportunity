@@ -274,8 +274,10 @@ def _canonical_llm_node(system_prompt: str, model_name: str, model_type: str) ->
                 "TopP": 0.9,
             }
         },
-        # The extraction LLM is reachable only from the positive Intent port.
-        "Depends": [_branch_dep(INTENT_ID, "class01"), {"NodeCode": START_ID}],
+        # A branch dependency is the trigger.  Do not also depend directly on
+        # Start: this tenant treats multiple Depends entries as alternative
+        # triggers, so adding Start would bypass the Intent gate.
+        "Depends": [_branch_dep(INTENT_ID, "class01")],
         "ErrorConfig": _error_config(),
         "ID": LLM_ID,
         "Layout": {"X": 767.8683821155, "Y": -20.8930962947},
@@ -340,11 +342,8 @@ def _canonical_code_node(code: str) -> dict:
                 "TimeoutSeconds": 120,
             }
         },
-        "Depends": [
-            _branch_dep(INTENT_ID, "class01"),
-            {"NodeCode": LLM_ID},
-            {"NodeCode": START_ID},
-        ],
+        # The gated LLM is the only trigger for the positive validation path.
+        "Depends": [{"NodeCode": LLM_ID}],
         "ErrorConfig": _error_config(),
         "ID": CODE_ID,
         "Layout": {"X": 1130.5280264347, "Y": 123.8514492921},
@@ -366,10 +365,9 @@ def _canonical_empty_code_node(code: str) -> dict:
                 "TimeoutSeconds": 120,
             }
         },
-        "Depends": [
-            _branch_dep(INTENT_ID, "class_other"),
-            {"NodeCode": START_ID},
-        ],
+        # Keep this branch dependency exclusive; a direct Start dependency
+        # would make the empty branch run for every article.
+        "Depends": [_branch_dep(INTENT_ID, "class_other")],
         "ErrorConfig": _error_config(),
         "ID": EMPTY_CODE_ID,
         "Layout": {"X": 1130.5280264347, "Y": 500.0},
@@ -547,9 +545,9 @@ def _validate_graph(graph: dict) -> None:
     expected_depends = {
         START_ID: [],
         INTENT_ID: [START_ID],
-        LLM_ID: [INTENT_ID, START_ID],
-        CODE_ID: [INTENT_ID, LLM_ID, START_ID],
-        EMPTY_CODE_ID: [INTENT_ID, START_ID],
+        LLM_ID: [INTENT_ID],
+        CODE_ID: [LLM_ID],
+        EMPTY_CODE_ID: [INTENT_ID],
         END_ID: [CODE_ID, EMPTY_CODE_ID],
     }
     for node in nodes:
@@ -621,7 +619,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--repo-root", default=str(Path(__file__).resolve().parents[1]))
     parser.add_argument("--output-dir", default="genios/workflows")
-    parser.add_argument("--workflow-stem", default="campus_opportunity_extract_gated")
+    parser.add_argument("--workflow-stem", default="campus_opportunity_extract_gated_v2")
     parser.add_argument(
         "--workflow-id",
         default=WORKFLOW_ID,

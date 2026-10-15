@@ -44,8 +44,8 @@ bash scripts/wizard_genios_import.sh
 
 `--check` 只读取源文件并检查生成图结构；`--force` 才会覆盖已有生成文件。默认生成：
 
-- `genios/workflows/campus_opportunity_extract_gated.import.json`：当前租户可导入的门控工作流文件。
-- `genios/workflows/campus_opportunity_extract_gated.graph.json`：同一份原生结构的检查副本。
+- `genios/workflows/campus_opportunity_extract_gated_v2.import.json`：当前租户可导入的门控工作流文件。
+- `genios/workflows/campus_opportunity_extract_gated_v2.graph.json`：同一份原生结构的检查副本。
 
 生成器默认沿用已验证导出 YAML 中的模型；租户模型不同或模型已下线时显式传入：
 
