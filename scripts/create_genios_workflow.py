@@ -621,7 +621,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--repo-root", default=str(Path(__file__).resolve().parents[1]))
     parser.add_argument("--output-dir", default="genios/workflows")
-    parser.add_argument("--workflow-stem", default="campus_opportunity_extract")
+    parser.add_argument("--workflow-stem", default="campus_opportunity_extract_gated")
     parser.add_argument(
         "--workflow-id",
         default=WORKFLOW_ID,

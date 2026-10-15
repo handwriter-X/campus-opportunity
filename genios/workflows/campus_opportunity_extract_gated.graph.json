@@ -1,0 +1,1048 @@
+{
+  "DLVersion": "v2",
+  "Depends": {
+    "AppMap": {},
+    "DataSourceMap": {},
+    "DatabaseMap": {},
+    "KnowledgeMap": {},
+    "ModelMap": {
+      "d9a3s2qldp7us4m2uc6g": {
+        "Desc": "DeepSeek-V4.1是深度求索全新推出的旗舰混合推理模型，支持自适应深度思考与通用对话双模式。",
+        "ID": "d9a3s2qldp7us4m2uc6g",
+        "LogoPath": "",
+        "Name": "deepseek v4.1 flash"
+      },
+      "db46nhqldp7id25nc970": {
+        "Desc": "意图识别节点使用的租户模型（来自真实导出示例）",
+        "ID": "db46nhqldp7id25nc970",
+        "LogoPath": "",
+        "Name": "doubao-seed-2-1-lite"
+      }
+    },
+    "PluginMap": {},
+    "QADataSetMap": {},
+    "TermDatasetMap": {},
+    "ToolMap": {},
+    "WorkflowMap": {}
+  },
+  "Desc": "校园机会信息抽取：Intent 门控，LLM 抽取，Code 三层校验，分支结果直连 End",
+  "DisplayName": "campus_opportunity_extract_gated",
+  "FlowType": "Workflow",
+  "ID": "db5igk54shhas0als37g",
+  "Icon": {
+    "uri": "plugin_icon/workflow.png"
+  },
+  "LogoPath": "",
+  "MetaType": "Workflow",
+  "Nodes": [
+    {
+      "Code": "db5igk54shhas0als380",
+      "Configs": {
+        "Start": {
+          "InputSchema": [
+            {
+              "Name": "article_id",
+              "Type": 0,
+              "Desc": "文章指纹",
+              "Required": true
+            },
+            {
+              "Name": "mode",
+              "Type": 0,
+              "Desc": "live 或 backfill"
+            },
+            {
+              "Name": "source",
+              "Type": 0,
+              "Desc": "来源公众号"
+            },
+            {
+              "Name": "title",
+              "Type": 0,
+              "Desc": "原文标题"
+            },
+            {
+              "Name": "url",
+              "Type": 0,
+              "Desc": "原文链接"
+            },
+            {
+              "Name": "publish_time",
+              "Type": 0,
+              "Desc": "发布时间"
+            },
+            {
+              "Name": "publish_weekday",
+              "Type": 0,
+              "Desc": "中文星期"
+            },
+            {
+              "Name": "text",
+              "Type": 0,
+              "Desc": "清洗后的正文",
+              "Required": true
+            },
+            {
+              "Name": "links",
+              "Type": 5,
+              "Desc": "正文中的链接列表"
+            }
+          ],
+          "OutputSchema": [
+            {
+              "Name": "article_id",
+              "Type": 0,
+              "Desc": "文章指纹",
+              "Required": true
+            },
+            {
+              "Name": "mode",
+              "Type": 0,
+              "Desc": "live 或 backfill"
+            },
+            {
+              "Name": "source",
+              "Type": 0,
+              "Desc": "来源公众号"
+            },
+            {
+              "Name": "title",
+              "Type": 0,
+              "Desc": "原文标题"
+            },
+            {
+              "Name": "url",
+              "Type": 0,
+              "Desc": "原文链接"
+            },
+            {
+              "Name": "publish_time",
+              "Type": 0,
+              "Desc": "发布时间"
+            },
+            {
+              "Name": "publish_weekday",
+              "Type": 0,
+              "Desc": "中文星期"
+            },
+            {
+              "Name": "text",
+              "Type": 0,
+              "Desc": "清洗后的正文",
+              "Required": true
+            },
+            {
+              "Name": "links",
+              "Type": 5,
+              "Desc": "正文中的链接列表"
+            }
+          ]
+        }
+      },
+      "ErrorConfig": {
+        "ErrorConfigType": "None"
+      },
+      "ID": "db5igk54shhas0als380",
+      "Layout": {
+        "X": 494.6740614088,
+        "Y": 247.2943046358
+      },
+      "Name": "Start",
+      "Type": "Start"
+    },
+    {
+      "Code": "db5igk54shhas0als38g",
+      "Configs": {
+        "End": {
+          "InputVariables": [
+            {
+              "Name": "opportunity_result",
+              "NodeCode": "db5j46d4shhas0alssag",
+              "Path": "result",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "non_opportunity_result",
+              "NodeCode": "db7q1sd4shhbpg91ndm0",
+              "Path": "result",
+              "RefType": "node_field"
+            }
+          ],
+          "OutputType": "Variable"
+        }
+      },
+      "Depends": [
+        {
+          "NodeCode": "db5j46d4shhas0alssag"
+        },
+        {
+          "NodeCode": "db7q1sd4shhbpg91ndm0"
+        }
+      ],
+      "ErrorConfig": {
+        "ErrorConfigType": "None"
+      },
+      "ID": "db5igk54shhas0als38g",
+      "Layout": {
+        "X": 1456.5760080065,
+        "Y": 373.5885313047
+      },
+      "Name": "End",
+      "Type": "End"
+    },
+    {
+      "Code": "db7q18d4shhbpg91ndfg",
+      "Configs": {
+        "Intent": {
+          "EnableChatHistories": false,
+          "Intentions": [
+            {
+              "Description": "学生现在或之后可以报名、申请、招募、预约或参与的竞赛、学术与学习交流、志愿活动与社会实践、校园文体活动。",
+              "Name": "机会文章",
+              "PortID": "class01"
+            },
+            {
+              "Description": "纯新闻、表彰喜报、获奖结果、活动回顾总结、已结束活动、招生或政策说明，或没有明确学生参与行动的文章。",
+              "Name": "Others",
+              "PortID": "class_other"
+            }
+          ],
+          "MaxTokens": 1024,
+          "ModelFeatureList": [
+            "streaming",
+            "tool-call",
+            "vision",
+            "vision-video",
+            "audio",
+            "reasoning",
+            "reasoning-switch"
+          ],
+          "ModelID": "db46nhqldp7id25nc970",
+          "ModelInteractiveMode": "direct",
+          "ModelName": "doubao-seed-2-1-lite",
+          "OutputSchema": [
+            {
+              "Name": "classificationId",
+              "Type": 1,
+              "Required": true
+            },
+            {
+              "Name": "classificationName",
+              "Type": 0,
+              "Required": true
+            },
+            {
+              "Name": "reason",
+              "Type": 0,
+              "Required": true
+            }
+          ],
+          "QueryVariable": {
+            "Name": "query",
+            "NodeCode": "db5igk54shhas0als380",
+            "Path": "text",
+            "RefType": "node_field"
+          },
+          "ReasoningMode": false,
+          "ReasoningSwitchType": "disabled",
+          "Retries": 0,
+          "SystemPrompt": "你是校园机会文章门控器。只根据输入文章原文选择一个意图，不做字段抽取，不补充原文没有的信息。\n\n选择“机会文章”：原文至少包含一个当前或未来仍可由学生报名、申请、招募、预约或直接参与的活动/项目，\n且类型属于竞赛、学术与学习交流、志愿活动与社会实践、校园文体活动四类之一。\n\n选择“非机会文章”：纯新闻、工作动态、表彰喜报、获奖结果、活动回顾总结、已结束活动、招生或政策说明，\n或原文没有明确学生行动机会。边界不清时选择“非机会文章”。\n\n只输出意图分类，不抽取 name、type、时间、链接等机会字段。分类依据必须来自文章本身。",
+          "Temperature": 0.7,
+          "TimeoutSeconds": 360,
+          "TopP": 0.9
+        }
+      },
+      "Depends": [
+        {
+          "NodeCode": "db5igk54shhas0als380"
+        }
+      ],
+      "ErrorConfig": {
+        "ErrorConfigType": "None"
+      },
+      "ID": "db7q18d4shhbpg91ndfg",
+      "Layout": {
+        "X": 760.0,
+        "Y": 247.2943046358
+      },
+      "Name": "意图识别01",
+      "Type": "Intent"
+    },
+    {
+      "Code": "db5iont4shhbpg90ho1g",
+      "Configs": {
+        "LLM": {
+          "CurrentTimeEnabled": true,
+          "EnableChatHistories": false,
+          "InputVariables": [
+            {
+              "Name": "article_id",
+              "NodeCode": "db5igk54shhas0als380",
+              "Path": "article_id",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "mode",
+              "NodeCode": "db5igk54shhas0als380",
+              "Path": "mode",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "source",
+              "NodeCode": "db5igk54shhas0als380",
+              "Path": "source",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "title",
+              "NodeCode": "db5igk54shhas0als380",
+              "Path": "title",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "url",
+              "NodeCode": "db5igk54shhas0als380",
+              "Path": "url",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "publish_time",
+              "NodeCode": "db5igk54shhas0als380",
+              "Path": "publish_time",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "publish_weekday",
+              "NodeCode": "db5igk54shhas0als380",
+              "Path": "publish_weekday",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "text",
+              "NodeCode": "db5igk54shhas0als380",
+              "Path": "text",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "links",
+              "NodeCode": "db5igk54shhas0als380",
+              "Path": "links",
+              "RefType": "node_field"
+            }
+          ],
+          "MaxTokens": 1024,
+          "ModelFeatureList": [
+            "streaming",
+            "tool-call",
+            "vision",
+            "reasoning",
+            "reasoning-effort",
+            "reasoning-switch"
+          ],
+          "ModelID": "d9a3s2qldp7us4m2uc6g",
+          "ModelInteractiveMode": "direct",
+          "ModelName": "deepseek v4.1 flash",
+          "OutputFormat": "json",
+          "OutputSchema": [
+            {
+              "Name": "raw_output",
+              "Type": 0
+            },
+            {
+              "Name": "reasoning_content",
+              "Type": 0
+            }
+          ],
+          "Prompt": "【发布时间】{{publish_time}}\n【星期几】{{publish_weekday}}\n【来源公众号】{{source}}\n【标题】{{title}}\n【原文链接】{{url}}\n\n【正文】\n{{text}}",
+          "PromptConfig": null,
+          "ReasoningEffortType": "medium",
+          "ReasoningMode": true,
+          "ReasoningSwitch": null,
+          "ReasoningSwitchType": "enabled",
+          "Retries": 0,
+          "SystemPrompt": "你是校园机会信息抽取器。你的唯一任务是把输入的公众号文章转成结构化 JSON。\n\n【铁律】\n1. 只依据文章原文。原文没有的信息一律填 null，绝对不许编造、推测或脑补。\n2. 「相关学院/专业」只在原文明确指向时才填；不得由主讲人所属单位反推。\n3. 「是否计入公能实践」必须以原通知为依据，原文没说就写「未说明」。\n4. 时间是相对表达（如「本周五」「下周三」）时，用【发布时间】和【星期几】推算成 ISO 时间；\n   同时把原文的时间说法原样保留在 event_time_text 里。推算不出来就填 null。\n5. **年份绝不能凭「今年是哪年」想当然。** 中文通知常写「10月18日（星期六）」而不写年份。\n   正确做法是：\n   a) 先取【发布时间】的年份；\n   b) **拿原文标注的星期去验证**——如果推算出的日期星期与原文标注不符，就把年份往前或往后调一年，\n      选那个**星期对得上**的；\n   c) 如果原文没有标注星期、或者怎么都对不上，就填 `null`，**不要硬凑一个日期**。\n   > 实例：原文写「10月18日（星期六）」，而 2026-10-18 是星期日、2025-10-18 才是星期六，\n   > 那么年份就该取 2025。**星期是原文给的免费校验锚点，一定要用。**\n6. 24:00 这类写法照常输出（如 `2026-10-15T24:00:00+08:00` 或直接写次日 `2026-10-16T00:00:00+08:00` 都行），\n   程序两种都能处理。\n7. 无法确定的字段填 null，不要填「未知」「待定」这类占位词。\n\n【机会类型】（固定四类，逐字使用，不得改写）\n- 竞赛\n- 学术与学习交流      ← 含学术报告、经验分享、课程辅导、考前突击、技能培训、企业分享、交流沙龙\n- 志愿活动与社会实践\n- 校园文体活动\n\n【判断标准】\n文章描述的是「学生可以报名参加或参与」的活动/机会，就算机会。\n纯新闻、表彰通报、活动回顾、党建动态、招生简章等**不是**机会。\n一篇文章可能包含多个机会（如「本周活动一览」），逐个放进 items；通常只有 1 个。\n\n【输出 JSON 格式】\n{\n  \"is_opportunity\": true,\n  \"confidence\": 0.0~1.0,\n  \"items\": [\n    {\n      \"name\": \"机会名称（通常取标题）\",\n      \"type\": \"四类之一\",\n      \"summary\": \"活动简介（只能依据原文）\",\n      \"event_time_text\": \"活动时间的原文表达，如「10月8日、15日、22日」\",\n      \"event_start\": \"2026-11-02T09:00:00+08:00 或 null\",\n      \"event_end\": \"2026-11-02T14:00:00+08:00 或 null\",\n      \"signup_start\": \"ISO 或 null\",\n      \"signup_deadline\": \"ISO 或 null\",\n      \"signup_method_text\": \"报名/参与方式的原文表达\",\n      \"location\": \"线下地点或线上平台，或 null\",\n      \"audience\": \"参与对象/资格限制，或 null\",\n      \"quota\": \"人数/名额要求，或 null\",\n      \"signup_url\": \"报名链接，或 null\",\n      \"gongneng_practice\": \"是 | 否 | 未说明 | 不适用\",\n      \"tags\": [\"科研\", \"保研\"],\n      \"type_specific\": { 见下 },\n      \"evidence\": {\n        \"signup_deadline\": \"原文中支撑该字段的原句片段\",\n        \"event_start\": \"……\",\n        \"location\": \"……\",\n        \"quota\": \"……\",\n        \"signup_url\": \"……\"\n      },\n      \"confidence\": 0.0~1.0\n    }\n  ]\n}\n\n【type_specific 按类型填】（不适用就不要出现该键）\n- 竞赛：level(校级/市级/省级/国家级) field(领域方向) participation_form(个人参赛/团队参赛) team_size(如「3人/队」)\n- 学术与学习交流：subtype(学术报告/经验分享/课程辅导/技能培训/企业分享/交流沙龙/其他)\n  topic speaker speaker_info content_field related_college\n- 志愿活动与社会实践：nature(志愿活动/社会实践) content duration service_hours special_requirements\n- 校园文体活动：project(具体项目) form(比赛/演出/体验/交流) rewards\n\n【evidence 字段的用途】\n键是字段名，值是从原文里**逐字摘出的片段**。它会被程序拿去原文里做子串匹配校验，\n所以必须是原文里真实存在的连续片段，不要改写、不要拼接、不要自己总结。\n\n只输出 JSON，不要输出任何解释，不要用 markdown 代码块包裹。",
+          "SystemPromptConfig": null,
+          "Temperature": 0.05,
+          "TimeoutSeconds": 120,
+          "TopP": 0.9
+        }
+      },
+      "Depends": [
+        {
+          "NodeCode": "db7q18d4shhbpg91ndfg",
+          "PortID": "class01"
+        },
+        {
+          "NodeCode": "db5igk54shhas0als380"
+        }
+      ],
+      "ErrorConfig": {
+        "ErrorConfigType": "None"
+      },
+      "ID": "db5iont4shhbpg90ho1g",
+      "Layout": {
+        "X": 767.8683821155,
+        "Y": -20.8930962947
+      },
+      "Name": "大模型01",
+      "Type": "LLM"
+    },
+    {
+      "Code": "db5j46d4shhas0alssag",
+      "Configs": {
+        "Code": {
+          "Code": "\"\"\"GeniOS 代码节点：解析大模型输出 + 三层校验。\n\n对应 PLAN §6「三层校验」（格式层 / 逻辑层 / 依据层）。\n\n## 为什么需要这个节点\n\n1. **大模型节点的输出信封是 `{\"raw_output\": \"<字符串>\"}`**（实测，见 docs/findings.md Q2）——\n   里面的 JSON 是**字符串**不是对象，必须显式解析一次。\n2. 三层校验按方案要求要落在这里（实测代码节点支持 `json`/`re`/`datetime`/`zoneinfo`，Python 3.10.19）。\n\n## 实测确认的接口契约（见 docs/findings.md Q3）\n\n- **不能**用顶层 `return`，也**不能**只靠 `print`；\n  运行时期望模块里有一个叫 `handler` 的函数，并执行 `call_function(handler, inputs)`。\n- 所以本文件定义 `def handler(inputs): ... return {...}`。\n\n## 上游要连什么\n\n这个节点的输入**至少要包含两样**（在 GeniOS 里把两个上游都连进来）：\n- 大模型节点的输出（含 `raw_output`）\n- Start 节点传来的原始文章（含 `text` / `links` / `publish_time`）\n\n因为第三层「依据校验」要拿抽取结果去**原文里做子串匹配**，没有原文就校验不了。\n下面 `_collect()` 会递归扫输入，把需要的东西找出来，所以两者是平铺还是嵌套都能work。\n\"\"\"\n\nimport datetime as dt\nimport json\nimport re\nimport unicodedata\n\nOPPORTUNITY_TYPES = (\"竞赛\", \"学术与学习交流\", \"志愿活动与社会实践\", \"校园文体活动\")\nGONGNENG = (\"是\", \"否\", \"未说明\", \"不适用\")\n\n# 第三层校验要验的「关键字段」\nEVIDENCE_FIELDS = (\"event_start\", \"event_end\", \"signup_start\", \"signup_deadline\", \"location\", \"quota\", \"signup_url\")\n\n# 判定为「有值」的最小长度：太短的片段（如「a」）在原文里匹配上没有意义\nMIN_EVIDENCE_LEN = 4\n\n\n# ---------------------------------------------------------------- 输入收集\n\n\ndef _collect(obj, keys, found=None):\n    \"\"\"递归扫描输入结构，收集所有需要顶层/嵌套字段。\n\n    GeniOS 里节点连线的产物形状不确定（可能是平铺 dict，也可能嵌一层），\n    所以这里不假设形状，直接深挖。\n    \"\"\"\n    if found is None:\n        found = {}\n    if isinstance(obj, str):\n        s = obj.strip()\n        if s[:1] in \"{[\":\n            try:\n                _collect(json.loads(s), keys, found)\n            except (ValueError, TypeError):\n                pass\n        return found\n    if isinstance(obj, dict):\n        for k, v in obj.items():\n            if k in keys and k not in found:\n                found[k] = v\n            _collect(v, keys, found)\n    elif isinstance(obj, list):\n        for v in obj:\n            _collect(v, keys, found)\n    return found\n\n\ndef _find_json_payload(blob, found=None):\n    \"\"\"在所有字符串里找那个「看起来像抽取结果」的 JSON。\"\"\"\n    if found is None:\n        found = []\n    if isinstance(blob, str):\n        s = blob.strip()\n        if s[:1] in \"{[\":\n            try:\n                data = json.loads(s)\n            except (ValueError, TypeError):\n                data = None\n            if isinstance(data, dict):\n                if \"items\" in data or \"is_opportunity\" in data:\n                    found.append(data)\n                else:\n                    _find_json_payload(data, found)\n    elif isinstance(blob, dict):\n        if \"items\" in blob or \"is_opportunity\" in blob:\n            found.append(blob)\n        for v in blob.values():\n            _find_json_payload(v, found)\n    elif isinstance(blob, list):\n        for v in blob:\n            _find_json_payload(v, found)\n    return found\n\n\n# ---------------------------------------------------------------- 归一化\n\n\ndef _norm(text):\n    \"\"\"做空白与全半角归一化，用于「依据是否真实存在于原文」的比对。\n\n    方案 §6 明确要求：做空白与全半角归一化后的子串匹配。\n    \"\"\"\n    if text is None:\n        return \"\"\n    s = unicodedata.normalize(\"NFKC\", str(text))\n    return re.sub(r\"\\s+\", \"\", s)\n\n\ndef _in_source(snippet, source_norm):\n    return bool(snippet) and _norm(snippet) in source_norm\n\n\nWEEKDAY_CN = (\"星期一\", \"星期二\", \"星期三\", \"星期四\", \"星期五\", \"星期六\", \"星期日\")\n\n_WEEKDAY_RE = re.compile(r\"(?:星期|周|礼拜)([一二三四五六日天])\")\n\n\ndef _stated_weekday(text):\n    \"\"\"从一段文字里提取中文星期标注，如「10月18日（星期六）」→ 星期六。\"\"\"\n    match = _WEEKDAY_RE.search(_norm(text))\n    if not match:\n        return None\n    char = match.group(1)\n    return \"星期日\" if char == \"天\" else f\"星期{char}\"\n\n\ndef _weekday_cn(value):\n    return WEEKDAY_CN[value.weekday()]\n\n\n# ---------------------------------------------------------------- 各层校验\n\n\n_DAY_END = re.compile(\n    r\"^(\\d{4})-(\\d{2})-(\\d{2})[T ]24:00(?::00)?(?:\\.\\d+)?(?P<tz>Z|[+-]\\d{2}:?\\d{2})?$\"\n)\n\n\ndef _parse_dt(value):\n    \"\"\"解析 ISO 时间；带时区的按上海理解（本服务只服务校内）。\n\n    ⚠️ 平台代码节点是 **Python 3.10**，它的 `fromisoformat` 比 3.11+ 严格：\n    不接受 `T24:00:00`（ISO 8601 允许它表示「当日终点」）。而中文通知里\n    「10月15日24:00 截止」非常常见，所以这里先手工归一化成次日 00:00。\n    这个坑在 3.11+ 上复现不出来（那里能直接解析），别被本地环境骗了。\n    \"\"\"\n    if not value or not isinstance(value, str):\n        return None\n    text = value.strip().replace(\"Z\", \"+00:00\")\n\n    day_end = _DAY_END.match(text)\n    if day_end:\n        next_day = dt.date(int(day_end.group(1)), int(day_end.group(2)), int(day_end.group(3))) + dt.timedelta(days=1)\n        text = f\"{next_day.isoformat()}T00:00:00{day_end.group('tz') or ''}\"\n\n    try:\n        parsed = dt.datetime.fromisoformat(text)\n    except ValueError:\n        try:\n            parsed = dt.datetime.combine(dt.date.fromisoformat(text), dt.time.min)\n        except ValueError:\n            return None\n    if parsed.tzinfo is None:\n        parsed = parsed.replace(tzinfo=dt.timezone(dt.timedelta(hours=8)))\n    return parsed\n\n\ndef _is_url(value):\n    return bool(value) and re.match(r\"^https?://[^\\s]+$\", str(value).strip())\n\n\ndef _validate_item(item, source_norm, links, publish_dt, index):\n    \"\"\"返回 (清洗后的 item, 问题列表)。不满足「依据层」的字段会被置空。\"\"\"\n    issues = []\n    if not isinstance(item, dict):\n        return None, [f\"items[{index}] 不是对象\"]\n\n    # ---- 第一层：格式 ----\n    name = item.get(\"name\")\n    if not name or not str(name).strip():\n        issues.append(f\"items[{index}] 缺少 name，已丢弃\")\n        return None, issues\n\n    otype = item.get(\"type\")\n    if otype not in OPPORTUNITY_TYPES:\n        issues.append(f\"items[{index}] 类型 {otype!r} 不在四类枚举内，已丢弃\")\n        return None, issues\n\n    if item.get(\"gongneng_practice\") not in GONGNENG:\n        item[\"gongneng_practice\"] = \"未说明\"\n\n    # ---- 第二层：逻辑 ----\n    parsed = {}\n    for field in (\"event_start\", \"event_end\", \"signup_start\", \"signup_deadline\"):\n        value = item.get(field)\n        if value in (None, \"\", \"null\"):\n            item[field] = None\n            continue\n        parsed_dt = _parse_dt(value)\n        if parsed_dt is None:\n            issues.append(f\"items[{index}].{field} 不是可解析的 ISO 时间，已置空\")\n            item[field] = None\n        else:\n            parsed[field] = parsed_dt\n            item[field] = parsed_dt.isoformat(timespec=\"seconds\")\n\n    start, end = parsed.get(\"event_start\"), parsed.get(\"event_end\")\n    if start and end and start > end:\n        issues.append(f\"items[{index}] 活动开始晚于结束，event_start/event_end 已置空\")\n        item[\"event_start\"] = item[\"event_end\"] = None\n\n    deadline = parsed.get(\"signup_deadline\")\n    if publish_dt and deadline and deadline < publish_dt - dt.timedelta(days=1):\n        issues.append(f\"items[{index}] 报名截止早于发布时间超过 1 天，signup_deadline 已置空\")\n        item[\"signup_deadline\"] = None\n        deadline = None\n\n    # 年份与发布时间相差不超过 1 年\n    if publish_dt:\n        for field, value in list(parsed.items()):\n            if abs(value.year - publish_dt.year) > 1:\n                issues.append(f\"items[{index}].{field} 年份({value.year})与发布时间差超过 1 年，已置空\")\n                item[field] = None\n\n    signup_url = item.get(\"signup_url\")\n    if signup_url and not _is_url(signup_url):\n        issues.append(f\"items[{index}].signup_url 不是合法 URL，已置空\")\n        item[\"signup_url\"] = None\n        signup_url = None\n\n    # ---- 第三层：依据（关键字段必须能在原文里找到） ----\n    evidence = item.get(\"evidence\") if isinstance(item.get(\"evidence\"), dict) else {}\n    kept_evidence = {}\n    for field, snippet in evidence.items():\n        if isinstance(snippet, str) and len(snippet.strip()) >= MIN_EVIDENCE_LEN and _in_source(snippet, source_norm):\n            kept_evidence[field] = snippet\n        else:\n            issues.append(f\"items[{index}] 字段 {field} 的原文依据未在原文中找到，该依据被丢弃\")\n\n    for field in EVIDENCE_FIELDS:\n        value = item.get(field)\n        if not value:\n            continue\n        snippet = kept_evidence.get(field)\n        if not snippet:\n            # 没有可信依据 → 置空并降置信度（方案 §6 的做法）\n            issues.append(f\"items[{index}].{field} 缺少可验证的原文依据，已置空\")\n            item[field] = None\n\n    # 报名链接必须出现在原文或传入的 links 里\n    if item.get(\"signup_url\"):\n        if not (_in_source(signup_url, source_norm) or signup_url in links):\n            issues.append(f\"items[{index}].signup_url 既不在原文也不在上游 links 里，已置空\")\n            item[\"signup_url\"] = None\n\n    item[\"evidence\"] = kept_evidence\n\n    # ---- 附加校验：原文星期标注 vs 规范化日期的真实星期 ----\n    # 中文通知普遍写「10月18日（星期六）」，这个星期就是**免费的校验锚点**。\n    # 实测踩到的坑：文章是 2025 年的，模型按「当前年份」推成了 2026 —— 日期整体错了一年，\n    # 而「年份差 ≤ 1 年」的容差恰好放它过去。用星期一比就露馅了。\n    date_conflicts = []\n    for field, value in parsed.items():\n        if item.get(field) is None:\n            continue\n        snippet = kept_evidence.get(field, \"\")\n        stated = _stated_weekday(snippet)\n        if not stated:\n            continue\n        # 「10月24日（星期六）24:00」这种写法，24:00 归一化后会滚到次日 00:00，\n        # 但原文的星期说的是**滚之前那一天**。不处理就会误报。\n        comparable = value\n        if re.search(r\"24[:：]00\", _norm(snippet)):\n            comparable = value - dt.timedelta(days=1)\n        if stated != _weekday_cn(comparable):\n            date_conflicts.append(\n                f\"{field}={item[field]} 与原文标注的{stated}不符（该日期实际是{_weekday_cn(comparable)}）\"\n            )\n    if date_conflicts:\n        issues.extend(f\"items[{index}] 日期可疑：{c}\" for c in date_conflicts)\n        # 不静默置空 —— 日期本身可能仍有用，但必须让人知道它可疑\n        item[\"date_conflict\"] = date_conflicts\n\n    # ---- 置信度 ----\n    try:\n        conf = float(item.get(\"confidence\", 0))\n    except (TypeError, ValueError):\n        conf = 0.0\n    conf = min(max(conf, 0.0), 1.0)\n    if issues:\n        conf = max(0.0, conf - 0.15 * len(issues))\n    item[\"confidence\"] = round(conf, 3)\n    item[\"low_confidence\"] = conf < 0.6\n\n    item.setdefault(\"tags\", [])\n    return item, issues\n\n\n# ---------------------------------------------------------------- 输出整形\n\n\ndef _to_gateway_shape(item, collected, publish_dt):\n    \"\"\"把抽取结果的键名对齐 gateway `POST /opportunities` 的字段名。\n\n    网关的 `_OPPORTUNITY_FIELDS`（gateway/app/store.py:194）接受的键是：\n    name / type / summary / event_time_raw / signup_deadline_raw / location / audience /\n    quota / signup_method / signup_url / gongneng_practice / source_url / source_account /\n    confidence / low_confidence\n    加上 datetime 字段 publish_time / signup_start / event_start / event_end / signup_deadline，\n    以及 article_id / tags / evidence / extra。\n\n    对齐之后，HTTP 节点可以把本节点的输出**原样**作为请求体发出去，不需要再映射。\n    \"\"\"\n    item[\"event_time_raw\"] = item.pop(\"event_time_text\", None)\n    item[\"signup_method\"] = item.pop(\"signup_method_text\", None)\n    # gateway 同时保存规范化时间和原文表达。提示词把截止时间的原文依据\n    # 放在 evidence.signup_deadline，因此这里沿用该片段，不凭空生成另一种说法。\n    evidence = item.get(\"evidence\")\n    if isinstance(evidence, dict) and item.get(\"signup_deadline_raw\") in (None, \"\"):\n        item[\"signup_deadline_raw\"] = evidence.get(\"signup_deadline\")\n    item[\"source_account\"] = collected.get(\"source\")\n    item[\"source_url\"] = collected.get(\"url\")\n    item[\"article_id\"] = collected.get(\"article_id\")\n    if publish_dt is not None:\n        item[\"publish_time\"] = publish_dt.isoformat(timespec=\"seconds\")\n\n    # 类型专属字段整体塞进 extra（网关会原样存 JSON），避免为四种类型各加一批列\n    item[\"extra\"] = {\"type_specific\": item.pop(\"type_specific\", {})}\n    return item\n\n\n# ---------------------------------------------------------------- 入口\n\n\n_RESULT_FIELDS = (\n    \"ok\",\n    \"is_opportunity\",\n    \"article_id\",\n    \"items\",\n    \"issues\",\n    \"item_count\",\n)\n\n\ndef _with_result(payload):\n    \"\"\"Expose one object-shaped result so a branched workflow can connect End directly.\"\"\"\n    payload[\"result\"] = {key: payload.get(key) for key in _RESULT_FIELDS}\n    return payload\n\n\ndef handler(inputs):\n    \"\"\"GeniOS 代码节点入口（实测契约：运行时会调用 handler(inputs)）。\"\"\"\n    collected = _collect(inputs, {\"text\", \"links\", \"article_id\", \"publish_time\", \"source\", \"title\", \"url\"})\n\n    raw_text = collected.get(\"text\") or \"\"\n    links = collected.get(\"links\") or []\n    if isinstance(links, str):\n        try:\n            links = json.loads(links)\n        except (ValueError, TypeError):\n            links = [links]\n    links = [str(x) for x in links] if isinstance(links, list) else []\n\n    publish_dt = _parse_dt(collected.get(\"publish_time\"))\n    source_norm = _norm(raw_text)\n\n    candidates = _find_json_payload(inputs)\n    if not candidates:\n        return _with_result({\n            \"ok\": False,\n            \"reason\": \"未能从上游输出里找到抽取结果 JSON\",\n            \"article_id\": collected.get(\"article_id\"),\n            \"items\": [],\n            \"issues\": [\"未找到含 items/is_opportunity 的 JSON 对象\"],\n            \"item_count\": 0,\n            \"is_opportunity\": False,\n        })\n\n    payload = candidates[0]\n    items_in = payload.get(\"items\") or []\n    if not isinstance(items_in, list):\n        items_in = [items_in]\n\n    issues = []\n    cleaned = []\n    for i, item in enumerate(items_in):\n        result, item_issues = _validate_item(item, source_norm, links, publish_dt, i)\n        issues.extend(item_issues)\n        if result is not None:\n            cleaned.append(_to_gateway_shape(result, collected, publish_dt))\n\n    # `first_item` 是旧版 HTTP 回写节点的兼容字段。当前工作流由 End 返回完整\n    # `items` 数组，worker 会逐条入库；保留它可避免已有 GeniOS 节点变量引用失效。\n    return _with_result({\n        \"ok\": bool(cleaned),\n        \"is_opportunity\": bool(payload.get(\"is_opportunity\")) and bool(cleaned),\n        \"article_id\": collected.get(\"article_id\"),\n        \"items\": cleaned,\n        \"first_item\": cleaned[0] if cleaned else None,\n        \"issues\": issues,\n        \"item_count\": len(cleaned),\n    })\n",
+          "InputVariables": [
+            {
+              "Name": "article_id",
+              "NodeCode": "db5igk54shhas0als380",
+              "Path": "article_id",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "mode",
+              "NodeCode": "db5igk54shhas0als380",
+              "Path": "mode",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "source",
+              "NodeCode": "db5igk54shhas0als380",
+              "Path": "source",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "title",
+              "NodeCode": "db5igk54shhas0als380",
+              "Path": "title",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "url",
+              "NodeCode": "db5igk54shhas0als380",
+              "Path": "url",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "publish_time",
+              "NodeCode": "db5igk54shhas0als380",
+              "Path": "publish_time",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "publish_weekday",
+              "NodeCode": "db5igk54shhas0als380",
+              "Path": "publish_weekday",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "text",
+              "NodeCode": "db5igk54shhas0als380",
+              "Path": "text",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "links",
+              "NodeCode": "db5igk54shhas0als380",
+              "Path": "links",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "raw_output",
+              "NodeCode": "db5iont4shhbpg90ho1g",
+              "Path": "raw_output",
+              "RefType": "node_field"
+            }
+          ],
+          "Language": 1,
+          "OutputSchema": [
+            {
+              "Name": "ok",
+              "Type": 2
+            },
+            {
+              "Name": "is_opportunity",
+              "Type": 2
+            },
+            {
+              "Name": "article_id",
+              "Type": 0
+            },
+            {
+              "Name": "items",
+              "SubParameters": [
+                {
+                  "Name": "name",
+                  "Type": 0
+                },
+                {
+                  "Name": "type",
+                  "Type": 0
+                },
+                {
+                  "Name": "summary",
+                  "Type": 0
+                },
+                {
+                  "Name": "event_time_raw",
+                  "Type": 0
+                },
+                {
+                  "Name": "event_start",
+                  "Type": 0
+                },
+                {
+                  "Name": "event_end",
+                  "Type": 0
+                },
+                {
+                  "Name": "signup_start",
+                  "Type": 0
+                },
+                {
+                  "Name": "signup_deadline",
+                  "Type": 0
+                },
+                {
+                  "Name": "signup_deadline_raw",
+                  "Type": 0
+                },
+                {
+                  "Name": "location",
+                  "Type": 0
+                },
+                {
+                  "Name": "audience",
+                  "Type": 0
+                },
+                {
+                  "Name": "quota",
+                  "Type": 0
+                },
+                {
+                  "Name": "signup_method",
+                  "Type": 0
+                },
+                {
+                  "Name": "signup_url",
+                  "Type": 0
+                },
+                {
+                  "Name": "gongneng_practice",
+                  "Type": 0
+                },
+                {
+                  "Name": "source_url",
+                  "Type": 0
+                },
+                {
+                  "Name": "source_account",
+                  "Type": 0
+                },
+                {
+                  "Name": "confidence",
+                  "Type": 3
+                },
+                {
+                  "Name": "low_confidence",
+                  "Type": 2
+                },
+                {
+                  "Name": "evidence",
+                  "Type": 4
+                },
+                {
+                  "Name": "tags",
+                  "Type": 5
+                },
+                {
+                  "Name": "extra",
+                  "Type": 4
+                },
+                {
+                  "Name": "article_id",
+                  "Type": 0
+                },
+                {
+                  "Name": "publish_time",
+                  "Type": 0
+                },
+                {
+                  "Name": "date_conflict",
+                  "Type": 5
+                }
+              ],
+              "Type": 9
+            },
+            {
+              "Name": "issues",
+              "Type": 5
+            },
+            {
+              "Name": "item_count",
+              "Type": 1
+            },
+            {
+              "Name": "result",
+              "SubParameters": [
+                {
+                  "Name": "ok",
+                  "Type": 2
+                },
+                {
+                  "Name": "is_opportunity",
+                  "Type": 2
+                },
+                {
+                  "Name": "article_id",
+                  "Type": 0
+                },
+                {
+                  "Name": "items",
+                  "SubParameters": [
+                    {
+                      "Name": "name",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "type",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "summary",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "event_time_raw",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "event_start",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "event_end",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "signup_start",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "signup_deadline",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "signup_deadline_raw",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "location",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "audience",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "quota",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "signup_method",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "signup_url",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "gongneng_practice",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "source_url",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "source_account",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "confidence",
+                      "Type": 3
+                    },
+                    {
+                      "Name": "low_confidence",
+                      "Type": 2
+                    },
+                    {
+                      "Name": "evidence",
+                      "Type": 4
+                    },
+                    {
+                      "Name": "tags",
+                      "Type": 5
+                    },
+                    {
+                      "Name": "extra",
+                      "Type": 4
+                    },
+                    {
+                      "Name": "article_id",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "publish_time",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "date_conflict",
+                      "Type": 5
+                    }
+                  ],
+                  "Type": 9
+                },
+                {
+                  "Name": "issues",
+                  "Type": 5
+                },
+                {
+                  "Name": "item_count",
+                  "Type": 1
+                }
+              ],
+              "Type": 4
+            }
+          ],
+          "Retries": 0,
+          "TimeoutSeconds": 120
+        }
+      },
+      "Depends": [
+        {
+          "NodeCode": "db7q18d4shhbpg91ndfg",
+          "PortID": "class01"
+        },
+        {
+          "NodeCode": "db5iont4shhbpg90ho1g"
+        },
+        {
+          "NodeCode": "db5igk54shhas0als380"
+        }
+      ],
+      "ErrorConfig": {
+        "ErrorConfigType": "None"
+      },
+      "ID": "db5j46d4shhas0alssag",
+      "Layout": {
+        "X": 1130.5280264347,
+        "Y": 123.8514492921
+      },
+      "Name": "代码01",
+      "Type": "Code"
+    },
+    {
+      "Code": "db7q1sd4shhbpg91ndm0",
+      "Configs": {
+        "Code": {
+          "Code": "\"\"\"GeniOS 非机会分支的统一空结果节点。\n\n把意图识别判为“非机会”的文章转换为与抽取/校验分支相同的 End 输出契约。\n该节点只负责结果形状，不重新判断文章内容，也不写入数据库。\n\"\"\"\n\nimport json\n\n\ndef _collect(obj, keys, found=None):\n    \"\"\"递归读取 GeniOS 连线输入，兼容平铺字典和字符串 JSON 信封。\"\"\"\n    if found is None:\n        found = {}\n    if isinstance(obj, str):\n        text = obj.strip()\n        if text[:1] in \"{[\":\n            try:\n                _collect(json.loads(text), keys, found)\n            except (TypeError, ValueError):\n                pass\n        return found\n    if isinstance(obj, dict):\n        for key, value in obj.items():\n            if key in keys and key not in found:\n                found[key] = value\n            _collect(value, keys, found)\n    elif isinstance(obj, list):\n        for value in obj:\n            _collect(value, keys, found)\n    return found\n\n\ndef handler(inputs):\n    \"\"\"GeniOS 代码节点入口：返回非机会文章的结构化空结果。\"\"\"\n    collected = _collect(inputs, {\"article_id\"})\n    result = {\n        \"ok\": False,\n        \"is_opportunity\": False,\n        \"article_id\": collected.get(\"article_id\"),\n        \"items\": [],\n        \"first_item\": None,\n        \"issues\": [],\n        \"item_count\": 0,\n    }\n    result[\"result\"] = {\n        key: result[key]\n        for key in (\"ok\", \"is_opportunity\", \"article_id\", \"items\", \"issues\", \"item_count\")\n    }\n    return result\n",
+          "InputVariables": [
+            {
+              "Name": "article_id",
+              "NodeCode": "db5igk54shhas0als380",
+              "Path": "article_id",
+              "RefType": "node_field"
+            }
+          ],
+          "Language": 1,
+          "OutputSchema": [
+            {
+              "Name": "ok",
+              "Type": 2
+            },
+            {
+              "Name": "is_opportunity",
+              "Type": 2
+            },
+            {
+              "Name": "article_id",
+              "Type": 0
+            },
+            {
+              "Name": "items",
+              "SubParameters": [
+                {
+                  "Name": "name",
+                  "Type": 0
+                },
+                {
+                  "Name": "type",
+                  "Type": 0
+                },
+                {
+                  "Name": "summary",
+                  "Type": 0
+                },
+                {
+                  "Name": "event_time_raw",
+                  "Type": 0
+                },
+                {
+                  "Name": "event_start",
+                  "Type": 0
+                },
+                {
+                  "Name": "event_end",
+                  "Type": 0
+                },
+                {
+                  "Name": "signup_start",
+                  "Type": 0
+                },
+                {
+                  "Name": "signup_deadline",
+                  "Type": 0
+                },
+                {
+                  "Name": "signup_deadline_raw",
+                  "Type": 0
+                },
+                {
+                  "Name": "location",
+                  "Type": 0
+                },
+                {
+                  "Name": "audience",
+                  "Type": 0
+                },
+                {
+                  "Name": "quota",
+                  "Type": 0
+                },
+                {
+                  "Name": "signup_method",
+                  "Type": 0
+                },
+                {
+                  "Name": "signup_url",
+                  "Type": 0
+                },
+                {
+                  "Name": "gongneng_practice",
+                  "Type": 0
+                },
+                {
+                  "Name": "source_url",
+                  "Type": 0
+                },
+                {
+                  "Name": "source_account",
+                  "Type": 0
+                },
+                {
+                  "Name": "confidence",
+                  "Type": 3
+                },
+                {
+                  "Name": "low_confidence",
+                  "Type": 2
+                },
+                {
+                  "Name": "evidence",
+                  "Type": 4
+                },
+                {
+                  "Name": "tags",
+                  "Type": 5
+                },
+                {
+                  "Name": "extra",
+                  "Type": 4
+                },
+                {
+                  "Name": "article_id",
+                  "Type": 0
+                },
+                {
+                  "Name": "publish_time",
+                  "Type": 0
+                },
+                {
+                  "Name": "date_conflict",
+                  "Type": 5
+                }
+              ],
+              "Type": 9
+            },
+            {
+              "Name": "issues",
+              "Type": 5
+            },
+            {
+              "Name": "item_count",
+              "Type": 1
+            },
+            {
+              "Name": "result",
+              "SubParameters": [
+                {
+                  "Name": "ok",
+                  "Type": 2
+                },
+                {
+                  "Name": "is_opportunity",
+                  "Type": 2
+                },
+                {
+                  "Name": "article_id",
+                  "Type": 0
+                },
+                {
+                  "Name": "items",
+                  "SubParameters": [
+                    {
+                      "Name": "name",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "type",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "summary",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "event_time_raw",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "event_start",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "event_end",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "signup_start",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "signup_deadline",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "signup_deadline_raw",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "location",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "audience",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "quota",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "signup_method",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "signup_url",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "gongneng_practice",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "source_url",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "source_account",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "confidence",
+                      "Type": 3
+                    },
+                    {
+                      "Name": "low_confidence",
+                      "Type": 2
+                    },
+                    {
+                      "Name": "evidence",
+                      "Type": 4
+                    },
+                    {
+                      "Name": "tags",
+                      "Type": 5
+                    },
+                    {
+                      "Name": "extra",
+                      "Type": 4
+                    },
+                    {
+                      "Name": "article_id",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "publish_time",
+                      "Type": 0
+                    },
+                    {
+                      "Name": "date_conflict",
+                      "Type": 5
+                    }
+                  ],
+                  "Type": 9
+                },
+                {
+                  "Name": "issues",
+                  "Type": 5
+                },
+                {
+                  "Name": "item_count",
+                  "Type": 1
+                }
+              ],
+              "Type": 4
+            }
+          ],
+          "Retries": 0,
+          "TimeoutSeconds": 120
+        }
+      },
+      "Depends": [
+        {
+          "NodeCode": "db7q18d4shhbpg91ndfg",
+          "PortID": "class_other"
+        },
+        {
+          "NodeCode": "db5igk54shhas0als380"
+        }
+      ],
+      "ErrorConfig": {
+        "ErrorConfigType": "None"
+      },
+      "ID": "db7q1sd4shhbpg91ndm0",
+      "Layout": {
+        "X": 1130.5280264347,
+        "Y": 500.0
+      },
+      "Name": "代码02（非机会空结果）",
+      "Type": "Code"
+    }
+  ],
+  "UniqueName": "db5igk54shhas0als37g",
+  "UpdatedAt": "1970-01-01T00:00:00Z",
+  "VersionCode": "-",
+  "VersionName": "-"
+}
