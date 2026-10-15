@@ -1063,7 +1063,7 @@ env -u ALL_PROXY -u all_proxy -u HTTPS_PROXY -u https_proxy -u HTTP_PROXY -u htt
 
 ## 待决 / 待办（2026-10-05 新增）
 
-### 🆕 待决（2026-10-07）：三层校验现在无处安放
+### ✅ 已决（2026-10-11）：三层校验接回 GeniOS 代码节点
 
 改成「worker 直接入库」之后，`genios/code_nodes/parse_and_validate.py` 里那套
 **格式层 / 逻辑层 / 依据层**校验**暂时没有接进任何一条链路**：
@@ -1074,12 +1074,9 @@ env -u ALL_PROXY -u all_proxy -u HTTPS_PROXY -u https_proxy -u HTTP_PROXY -u htt
 后果：**模型编造的字段、原文里没有依据的字段，现在会被直接写进库**。
 提示词里的约束会降低概率，但没有代码兜底。
 
-三个选项（待用户定）：
-1. **把校验搬进 gateway**（worker 入库前跑一遍）—— 改动小，且和「worker 直接入库」的新架构一致
-2. **接回 GeniOS 代码节点**（大模型 → 代码节点 → End）—— 符合 PLAN §6，但要在 GeniOS 里加节点
-3. 暂时不做
-
-> 备注：代码节点里那两条实测教训（`T24:00` 归一化、星期一致性校验）在选项 1 时要一起搬过来。
+用户已确认采用选项 2：**接回 GeniOS 代码节点**（大模型 → 代码节点 → End）。
+不把校验搬到 gateway；代码节点里的 `T24:00` 归一化和星期一致性校验随工作流执行。
+worker 只消费 End 返回的清洗结果并完成字段搬运、持久化、去重和推送。
 
 ### 0. ✅ 已按用户确认落地的两处改动（2026-10-05）
 
@@ -1108,3 +1105,166 @@ S2 实验的可粘贴内容已在 `docs/genios_s2_experiments.md` 备好，等 S
 
 `cloudflared` 快速隧道一停就失效、URL 每次变。S5 阶段够用，但阶段 4 验收（真实公众号 → 飞书推送）
 需要一个稳定地址。建议尽早决定长期方案（校园服务器 / Cloudflare 命名隧道）。
+
+### 4. ✅ 三层校验接回 GeniOS 代码节点（2026-10-11，用户确认）
+
+用户选择了「接回 GeniOS 代码节点」，不把格式/逻辑/依据校验搬到 gateway。
+当前约定为：
+
+```text
+Start + 大模型输出 → GeniOS 代码节点 parse_and_validate → End
+                                                        ↓
+                                      gateway worker 轮询并递归提取 items
+```
+
+证据与实现：
+
+- `genios/code_nodes/parse_and_validate.py::handler` 同时收集 Start 原文和大模型输出，
+  解析 `raw_output`，执行三层校验，并返回 `items`、`issues`、`confidence`、`low_confidence`。
+- End 只需原样返回代码节点对象；worker 的字段适配兼容代码节点已经生成的
+  `event_time_raw`、`signup_method`、`extra` 等 gateway 字段，但不执行智能判断。
+- 这样校验仍在赛事要求的 GeniOS 工作流内，gateway 继续承担搬运、持久化、去重和推送。
+
+工作流的逐节点配置见 `docs/genios_workflow_spec.md` v2。
+
+### 5. ✅ 工作流导入 schema 以租户真实导出为准（2026-10-11）
+
+用户从当前 NK-GeniOS 租户导出的 `给个机会-20261011-151125.yaml` 是目前最直接的导入
+格式证据。对照生成文件和上传报错得到：
+
+- 节点类型必须使用 `Start`、`End`、`LLM`、`Code`；公开 DSL 的小写 `start` 会触发
+  `node type: start is not support`。
+- 节点依赖保存在节点级 `Depends: [{NodeCode: ...}]`，不使用公开 DSL 的 `edges`、
+  `source_node`、`target_node`。
+- 顶层工作流采用 `DLVersion: v2`、`Nodes`、`Configs`、`InputVariables`、
+  `OutputSchema` 等原生字段。
+- 当前接口将顶层 `Workflow.Icon` 解码为 `up.ObjInfo`；生成 JSON 使用
+  `Icon: {"uri":"plugin_icon/workflow.png"}`，避免字符串反序列化错误。
+- 真实 YAML 的 `UpdatedAt: 0` 不能原样放进 JSON；当前 JSON 解码器把该字段当作
+  `time.Time`，会报 `Time.UnmarshalJSON: input is not a JSON string`。生成器改用
+  `1970-01-01T00:00:00Z` 这一带引号的 RFC3339 值。
+
+生成器 `scripts/create_genios_workflow.py` 已按该 YAML 的字段集合和依赖结构重写，
+并保留仓库中的提示词与代码节点作为内容来源。用户已确认生成的 JSON 在当前租户成功上传；
+节点试运行和发布尚未由本次记录覆盖。
+
+### 6. ⚠️ 本地 `.env` 配置已生效，但 GeniOS 后端服务 API 尚未启用（2026-10-11）
+
+在仓库根目录 `.env` 填入当前租户的 API 地址、`Apikey` 鉴权、APPID、API Key、
+`runId` 任务字段和异步查询路径后，执行 `python scripts/probe_genios.py`。
+请求成功到达 `https://coze.nankai.edu.cn/api/proxy/api/v1/run_app_workflow`，
+平台返回 HTTP 401：
+
+```json
+{
+  "ResponseMetadata": {
+    "Error": {
+      "Code": "NotEnabled.Warning",
+      "Message": "Not enabled: API service is disabled"
+    }
+  }
+}
+```
+
+结论：当前 `.env` 的地址、请求体模板和鉴权头已被程序正确读取；下一步必须在 GeniOS
+智能体的“后端服务 API”页面启用 API 服务，并确认已发布包含该工作流的流程编排型版本。
+启用后重新运行同一探针，不应先修改 API 路径或密钥格式。
+
+### 7. ⚠️ API 启用后首次运行暴露 Code 输出 Schema 类型错误（2026-10-11）
+
+API 服务启用后，`python scripts/probe_genios.py` 返回 HTTP 200 和 `runId`，随后查询任务结果。
+工作流成功执行到 Code 节点，但任务状态为 `failed`，平台报：
+
+```text
+output validate failed: issues=[] is not of type 'string', 'null'
+```
+
+原因是 `genios/code_nodes/parse_and_validate.py::handler` 的真实返回值是字符串数组，
+而生成工作流的 Code 输出 Schema 仍把 `issues` 声明成字符串。生成器已修正为 `Type: 5`
+（字符串列表），并重新生成：
+
+- `genios/workflows/campus_opportunity_extract.import.json`
+- `genios/workflows/campus_opportunity_extract.graph.json`
+
+平台中已经导入的旧工作流不会自动更新，必须重新导入新 JSON，或在 Code 节点把 `issues`
+输出变量改为“字符串数组”，再重新试运行。
+
+### 8. ✅ 修正输出 Schema 后工作流端到端试运行成功（2026-10-11）
+
+重新发布修正后的工作流后，真实探针提交返回 HTTP 200 和 `runId`：
+`01M4NQSTB289BZQ9EX55YPWRRW`。异步查询结果为 `status: success`，执行步骤完整包含：
+
+```text
+Start → LLM → Code → End
+```
+
+最终输出为：
+
+```json
+{"article_id":"0000000000000000000000000000000000000000000000000000000000000000",
+ "is_opportunity":false,"issues":[],"item_count":0,"items":[],"ok":false}
+```
+
+这证明当前 API 凭据、异步轮询、工作流节点连线、Code 输出 Schema 和 End 返回均已打通。
+本次使用的是探针中的非机会文章，下一步应使用 `eval/samples/` 中的正向机会文章验证抽取字段。
+
+### 9. ⚠️ `items` 的列表对象必须声明嵌套字段（2026-10-11）
+
+正向样例在修正 `issues` 类型后，工作流状态虽然为 `success` 且 `item_count=1`，但 End
+返回的 `items` 是 `[{}]`。原因是原始导出 Schema 只在 `items.SubParameters` 中保留了
+历史占位字段 `first_item`；平台按 Schema 序列化时会丢弃未声明的机会字段。
+
+生成器现在在 `items.SubParameters` 中声明 gateway 消费的完整字段集合，包括名称、类型、
+时间、报名信息、依据、置信度、来源和 `extra`。其中 `confidence` 使用数字类型 `Type: 3`。
+更新后的 JSON 需要重新导入并发布后，正向样例的 `items[0]` 才会保留完整对象。
+
+### 10. ✅ 正向机会样例返回完整 `items`（2026-10-11）
+
+重新导入并发布包含完整列表对象 Schema 的工作流后，程序设计竞赛正向样例提交返回
+HTTP 200，任务 `01M4NSECM7SAMWZDPRJ4RDRZH5` 最终为 `status: success`，执行步骤仍为
+`Start → LLM → Code → End`。
+
+最终结果包含：
+
+- `is_opportunity: true`
+- `item_count: 1`
+- `items[0]` 含 `name`、`type`、`event_start`、`signup_deadline`、`location`、
+  `signup_url`、`evidence`、`confidence`、`source_account` 等字段
+- `issues` 仅报告原文没有明确依据的 `event_end` 与 `signup_start`，对应字段被置空
+
+这证明工作流导入、API 调用、异步轮询、代码节点三层校验和 End 的结构化输出已经打通。
+
+### 11. 🧭 机会文章门控先采用意图识别（2026-10-14）
+
+用户确认把文章级判断提前到抽取 LLM 之前：
+
+```text
+Start → 意图识别
+          ├─ 机会文章 → 抽取 LLM → Code 校验 ─┐
+          └─ 非机会文章 → 空结果 Code ────────┤
+                                               ↓
+                                             End
+```
+
+机会定义固定为学生可报名、申请、招募、预约或参与的四类：`竞赛`、`学术与学习交流`、
+`志愿活动与社会实践`、`校园文体活动`。纯新闻、回顾、喜报、获奖结果、已结束活动、
+招生/政策说明和无法确认学生行动的文章判为非机会。非机会分支返回
+`is_opportunity=false`、`items=[]`，worker 正常结束但不创建机会记录。
+
+本次查阅的本地 HiAgent 文档确认：Intent 节点输出分类名称和原因，Selector 适合对已有变量做条件比较。
+因此第一道门选 Intent；Selector 以后可用于 `item_count` 等确定性路由。当前租户尚未提供包含 Intent 节点的真实导出，
+故当时未猜测其 JSON schema，也未修改生成器或导入 JSON。新增的 `genios/prompts/intent_gate.md`、
+`genios/code_nodes/empty_result.py` 和 `docs/genios_workflow_spec.md` 第 1.1 节记录了手动接线方案。
+
+### 12. ✅ 已用真实 Intent 导出生成六节点工作流（2026-10-15）
+
+用户提供 `campus_opportunity_extract.import02-20261014-233430.yaml` 作为当前租户示范。该文件确认了：
+
+- `Type: Intent` 的原生配置键为 `Configs.Intent`；输出字段为 `classificationId`、`classificationName`、`reason`；
+- 意图端口使用 `class01` 和 `class_other`；查询变量采用 `Name/NodeCode/Path/RefType`，本项目接入为 `Start.text`；
+- 示例中的机会分支仍连到测试 LLM，兜底分支仍连到测试 Code，且 Intent 查询变量错误地引用了 `article_id`，所以不能直接作为最终工作流。
+
+生成器曾尝试加入 `VariableAggregator`，但租户返回 `node type: VariableAggregator is not support`。因此现改为：Start、Intent、
+机会分支 LLM、机会校验 Code、非机会空结果 Code、唯一 End。两个 Code 节点均额外返回对象字段 `result`，End 直接接两路对象，
+避免使用不支持的节点类型；worker 递归查找实际执行对象中的 `is_opportunity/items`。Intent、分支端口、模型注册和时间/Icon 处理均来自真实导出或此前成功上传约束。
+当前只完成静态生成检查，尚未声称租户运行验证通过。

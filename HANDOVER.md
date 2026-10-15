@@ -2,7 +2,7 @@
 
 > 给接手这个项目的人看的。目标：**读完之后你能把它跑起来、改得动、知道哪里是坑。**
 >
-> 最后更新：2026-10-09
+> 最后更新：2026-10-11
 
 ---
 
@@ -31,7 +31,7 @@
 **完整的闭环，用真实文章验证过**：
 
 ```
-公众号文章 → We-MP-RSS → /ingest → worker → GeniOS(Start→大模型→End)
+公众号文章 → We-MP-RSS → /ingest → worker → GeniOS（当前已验证：Start→大模型→Code→End；目标：加入意图识别门控）
                                               ↓ 轮询取回结果
                                         落库 + 推飞书
 ```
@@ -43,9 +43,10 @@
 
 | 东西 | 状态 |
 | --- | --- |
-| **三层校验**（`genios/code_nodes/parse_and_validate.py`） | 写好了、本地验过，但**当前链路没接** —— 模型编造的字段现在会直接入库 |
+| **三层校验**（`genios/code_nodes/parse_and_validate.py`） | ✅ 已接回 GeniOS Code 节点；机会分支继续使用，非机会分支返回空结果 |
+| **机会文章门控**（`genios/prompts/intent_gate.md`） | 🔄 已按真实租户 YAML 生成 Intent 分支工作流；因租户不支持 VariableAggregator，两个结果对象直连唯一 End |
 | **飞书卡片** | 卡片 JSON 已有（`genios/feishu_cards/`），但推送目前发的是**纯文本** |
-| **多机会文章的处理** | 现在一篇文章只出一批结果；「本周活动一览」这类含多个机会的汇总推文处理不完整 |
+| **多机会文章的处理** | 输出 Schema 已支持多个 `items`，但「本周活动一览」这类汇总推文还没有专项实测 |
 | **评测集** | `eval/samples/` 有 3 份样本，`labels/` 是空的，`run_eval.py` 没写 |
 
 ### ⛔ 还没做的
@@ -86,8 +87,8 @@
 │ GeniOS（南开平台）│       │ 飞书              │
 │ 底层是 HiAgent    │       │ （自建应用）       │
 │                  │       └──────────────────┘
-│ Start→大模型→End │
-│ 判断+抽取+校验    │
+│ Start→意图识别→分支→End │
+│ 门控+抽取/空结果+校验    │
 └──────────────────┘
 ```
 
@@ -196,7 +197,7 @@ docker run -d --name we-mp-rss --restart unless-stopped \
 
 | 平台 | 要做什么 | 参照 |
 | --- | --- | --- |
-| **GeniOS** | 新建工作流（Start 9 参数 → 大模型 → End）→ 发布为**流程编排型**智能体 → 在「后端服务 API」建密钥 | `docs/genios_workflow_spec.md` + `genios/prompts/step1_extract.md` |
+| **GeniOS** | 新建工作流（Start 9 参数 → 意图识别 → 机会抽取/非机会空结果 → 唯一 End）→ 发布为**流程编排型**智能体 → 在「后端服务 API」建密钥 | `docs/genios_workflow_spec.md` + `genios/prompts/intent_gate.md` |
 | **飞书** | 建**自建应用** → 开机器人能力 → 开 `im:message` 权限 → 发布版本 → 拿到 App ID/Secret | `HANDOVER.md` 第四节 |
 | **微信** | We-MP-RSS 里做**两次扫码授权**（公众号后台 + 微信读书）→ 建消息任务 | `HANDOVER.md` 第四节 |
 
@@ -270,8 +271,10 @@ env -u ALL_PROXY -u all_proxy -u HTTPS_PROXY -u https_proxy \
 
 | 文件 | 粘到哪 |
 | --- | --- |
-| `prompts/step1_extract.md` | 大模型节点（含系统提示词、用户提示词、few-shot） |
-| `code_nodes/parse_and_validate.py` | 代码节点（解析 + 三层校验）——**当前未接入** |
+| `prompts/intent_gate.md` | 意图识别节点（机会/非机会门控） |
+| `prompts/step1_extract.md` | 机会分支的大模型节点（含系统提示词、用户提示词、few-shot） |
+| `code_nodes/empty_result.py` | 非机会分支代码节点（统一空结果） |
+| `code_nodes/parse_and_validate.py` | 机会分支代码节点（解析 + 三层校验） |
 | `schemas/opportunity.schema.json` | 字段字典，提示词与校验共用 |
 | `feishu_cards/*.json` | 飞书卡片版式 |
 
@@ -349,25 +352,22 @@ env -u ALL_PROXY -u all_proxy -u HTTPS_PROXY -u https_proxy \
 
 按优先级：
 
-### 1. 补上三层校验（最该先做）
+### 1. 用新工作流跑一次 gateway `/ingest` 回归
 
-现在**模型编造的字段会直接入库**。`genios/code_nodes/parse_and_validate.py` 已经写好并本地验过，
-但它原本设计成跑在 GeniOS 的代码节点里，而当前链路绕过了代码节点。
-
-**两个选择**：
-- **搬进 gateway**（在 `worker` 入库前跑一遍）—— 改动小，和"worker 直接入库"的新架构一致
-- **接回 GeniOS 代码节点**（大模型 → 代码节点 → End）—— 符合原方案，但要在 GeniOS 里加节点并重新发布
+直接调用 GeniOS API 的正向和负向样例已经成功。下一步要确认新链路经过 worker 后，
+所有 `items` 都能正确入库，重复机会不会重复推送，`low_confidence` 和 `date_conflict`
+等清洗结果不会丢失。
 
 ### 2. 飞书卡片
 
 现在推的是纯文本。`genios/feishu_cards/instant.json` 有现成版式，`scripts/probe_feishu_webhook.py --card` 能预览。
 
-### 3. 评测集（`PLAN.md` 阶段 5）
+### 3. 评测集与多机会样例（`PLAN.md` 阶段 5）
 
 需要 50–100 篇标注样本。`eval/README.md` 列了必须凑齐的 6 类样本。
 **这是答辩时最能证明"智能是真的"的东西**——能拿出准确率数字，比说"我们用了大模型"有说服力得多。
 
-### 4. 多机会文章 / 两段式工作流
+### 4. 两段式工作流
 
 现在一篇文章只调一次大模型。「本周活动一览」这类含多个机会的汇总推文处理不完整。
 `PLAN.md` §6 设计的两段式（分类 → 循环 → 按类型抽取）能解决，`docs/genios_workflow_spec.md` 第 4 节写了怎么演进。

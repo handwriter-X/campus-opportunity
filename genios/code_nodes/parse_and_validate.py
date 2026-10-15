@@ -317,6 +317,11 @@ def _to_gateway_shape(item, collected, publish_dt):
     """
     item["event_time_raw"] = item.pop("event_time_text", None)
     item["signup_method"] = item.pop("signup_method_text", None)
+    # gateway 同时保存规范化时间和原文表达。提示词把截止时间的原文依据
+    # 放在 evidence.signup_deadline，因此这里沿用该片段，不凭空生成另一种说法。
+    evidence = item.get("evidence")
+    if isinstance(evidence, dict) and item.get("signup_deadline_raw") in (None, ""):
+        item["signup_deadline_raw"] = evidence.get("signup_deadline")
     item["source_account"] = collected.get("source")
     item["source_url"] = collected.get("url")
     item["article_id"] = collected.get("article_id")
@@ -329,6 +334,22 @@ def _to_gateway_shape(item, collected, publish_dt):
 
 
 # ---------------------------------------------------------------- 入口
+
+
+_RESULT_FIELDS = (
+    "ok",
+    "is_opportunity",
+    "article_id",
+    "items",
+    "issues",
+    "item_count",
+)
+
+
+def _with_result(payload):
+    """Expose one object-shaped result so a branched workflow can connect End directly."""
+    payload["result"] = {key: payload.get(key) for key in _RESULT_FIELDS}
+    return payload
 
 
 def handler(inputs):
@@ -349,13 +370,15 @@ def handler(inputs):
 
     candidates = _find_json_payload(inputs)
     if not candidates:
-        return {
+        return _with_result({
             "ok": False,
             "reason": "未能从上游输出里找到抽取结果 JSON",
             "article_id": collected.get("article_id"),
             "items": [],
             "issues": ["未找到含 items/is_opportunity 的 JSON 对象"],
-        }
+            "item_count": 0,
+            "is_opportunity": False,
+        })
 
     payload = candidates[0]
     items_in = payload.get("items") or []
@@ -370,10 +393,9 @@ def handler(inputs):
         if result is not None:
             cleaned.append(_to_gateway_shape(result, collected, publish_dt))
 
-    # `first_item` 是给 HTTP 请求节点的便利输出：
-    # `/opportunities` 一次只收一条记录，而 GeniOS 的变量选择器不一定支持
-    # `items[0]` 这种下标写法，所以直接把第一条单独放一份，Body 里点选它即可。
-    return {
+    # `first_item` 是旧版 HTTP 回写节点的兼容字段。当前工作流由 End 返回完整
+    # `items` 数组，worker 会逐条入库；保留它可避免已有 GeniOS 节点变量引用失效。
+    return _with_result({
         "ok": bool(cleaned),
         "is_opportunity": bool(payload.get("is_opportunity")) and bool(cleaned),
         "article_id": collected.get("article_id"),
@@ -381,4 +403,4 @@ def handler(inputs):
         "first_item": cleaned[0] if cleaned else None,
         "issues": issues,
         "item_count": len(cleaned),
-    }
+    })

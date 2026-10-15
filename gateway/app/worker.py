@@ -2,15 +2,15 @@
 
 ## 关于「要不要依赖 GeniOS 的返回值」
 
-原设计**刻意不依赖**：方案风险备忘写着「GeniOS API 为异步，且 Q1 未确认：若无法查询结果，
-则不得依赖返回值，所有结果都应由工作流通过 HTTP 节点回写 gateway」。
+原设计**刻意不依赖**：方案风险备忘曾假设「GeniOS API 为异步，且 Q1 未确认」，
+因此计划让工作流通过 HTTP 节点回写 gateway。
 
 **那个前提已经在 2026-10-07 消失了** —— Q1 关闭后实测确认：提交拿 `runId`、
 `query_run_app_process` 能查到 `status` 与 `output`（见 `docs/findings.md` Q1）。
 所以现在**可以**用返回值。
 
-但仍然遵守一条边界：**机会数据仍然由 `/opportunities` 回写落库**，worker 不自己写业务表。
-返回值只用来做**推送**（这是飞连环境下唯一可行的通知路径）。
+当前链路由 worker 消费 End 返回值并写入本地数据库；这里的字段映射只是搬运适配，
+判断、抽取和三层校验仍由 GeniOS 工作流完成。worker 再按配置执行推送。
 
 ## 推送目标可配
 
@@ -103,14 +103,17 @@ def extract_llm_payload(response: Any) -> dict[str, Any] | None:
     return walk(response)
 
 
-# 大模型输出（提示词里的字段名）→ gateway 数据库字段名。
-# 原来这一步由 GeniOS 的代码节点做（genios/code_nodes/parse_and_validate.py 的
-# `_to_gateway_shape`）。既然改成「worker 拿到结果直接入库」，映射就搬到这里来。
+# GeniOS 输出（提示词字段或代码节点清洗后的 gateway 字段）→ 数据库字段名。
+# 代码节点接回工作流后，worker 仍需要兼容它的清洗结果；这里仅做搬运适配，
+# 不重复判断机会、抽取字段或运行校验。
 _ITEM_FIELD_MAP = {"event_time_text": "event_time_raw", "signup_method_text": "signup_method"}
-# 其余同名字段直接透传
+# 其余同名字段直接透传。两组命名都保留，是为了兼容：
+# - 代码节点前的单大模型输出（event_time_text / signup_method_text）
+# - 代码节点清洗后的输出（event_time_raw / signup_method）
 _ITEM_PASSTHROUGH = (
-    "name", "type", "summary", "location", "audience", "quota", "signup_url",
-    "gongneng_practice", "tags", "evidence", "confidence",
+    "name", "type", "summary", "event_time_raw", "signup_deadline_raw",
+    "location", "audience", "quota", "signup_method", "signup_url",
+    "gongneng_practice", "tags", "evidence", "confidence", "low_confidence",
     "event_start", "event_end", "signup_start", "signup_deadline",
 )
 
@@ -130,9 +133,20 @@ def to_opportunity_data(
     for src_key, dst_key in _ITEM_FIELD_MAP.items():
         if item.get(src_key):
             data[dst_key] = item[src_key]
-    # 类型专属字段整体塞进 extra（网关原样存 JSON），不为四类各开一批列
-    if item.get("type_specific"):
-        data["extra"] = {"type_specific": item["type_specific"]}
+    # 代码节点已经把类型专属字段放进 extra；旧的单模型结果仍使用
+    # type_specific。两种形状都保留，避免清洗节点接回后丢字段。
+    if item.get("extra") not in (None, "", [], {}):
+        data["extra"] = item["extra"]
+    if item.get("type_specific") not in (None, "", [], {}):
+        extra = data.setdefault("extra", {})
+        if isinstance(extra, dict):
+            extra.setdefault("type_specific", item["type_specific"])
+        else:
+            data["extra"] = {"type_specific": item["type_specific"], "value": extra}
+    if item.get("date_conflict"):
+        extra = data.setdefault("extra", {})
+        if isinstance(extra, dict):
+            extra.setdefault("date_conflict", item["date_conflict"])
     data["source_account"] = source
     data["source_url"] = url
     data["article_id"] = article_id

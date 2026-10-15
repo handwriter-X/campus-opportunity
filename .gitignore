@@ -25,5 +25,8 @@ Thumbs.db
 .idea/
 .vscode/
 
+# local code intelligence index
+.codegraph/
+
 # captures from probes may contain article text
 eval/samples/_raw/
