@@ -336,6 +336,22 @@ def _to_gateway_shape(item, collected, publish_dt):
 # ---------------------------------------------------------------- 入口
 
 
+_RESULT_FIELDS = (
+    "ok",
+    "is_opportunity",
+    "article_id",
+    "items",
+    "issues",
+    "item_count",
+)
+
+
+def _with_result(payload):
+    """Expose one object-shaped result so a branched workflow can connect End directly."""
+    payload["result"] = {key: payload.get(key) for key in _RESULT_FIELDS}
+    return payload
+
+
 def handler(inputs):
     """GeniOS 代码节点入口（实测契约：运行时会调用 handler(inputs)）。"""
     collected = _collect(inputs, {"text", "links", "article_id", "publish_time", "source", "title", "url"})
@@ -354,13 +370,15 @@ def handler(inputs):
 
     candidates = _find_json_payload(inputs)
     if not candidates:
-        return {
+        return _with_result({
             "ok": False,
             "reason": "未能从上游输出里找到抽取结果 JSON",
             "article_id": collected.get("article_id"),
             "items": [],
             "issues": ["未找到含 items/is_opportunity 的 JSON 对象"],
-        }
+            "item_count": 0,
+            "is_opportunity": False,
+        })
 
     payload = candidates[0]
     items_in = payload.get("items") or []
@@ -377,7 +395,7 @@ def handler(inputs):
 
     # `first_item` 是旧版 HTTP 回写节点的兼容字段。当前工作流由 End 返回完整
     # `items` 数组，worker 会逐条入库；保留它可避免已有 GeniOS 节点变量引用失效。
-    return {
+    return _with_result({
         "ok": bool(cleaned),
         "is_opportunity": bool(payload.get("is_opportunity")) and bool(cleaned),
         "article_id": collected.get("article_id"),
@@ -385,4 +403,4 @@ def handler(inputs):
         "first_item": cleaned[0] if cleaned else None,
         "issues": issues,
         "item_count": len(cleaned),
-    }
+    })

@@ -42,9 +42,10 @@ schemas/opportunity.schema.json → 两条提示词与机会校验共用的字�
 - **`parse_and_validate.py`**：校验机会字段并输出完整 `items`。
 - **`empty_result.py`**：在“非机会文章”分支输出 `is_opportunity=false`、`items=[]`，让 worker 正常结束但不入机会库。
 
-当前生成器和 `*.import.json` 已生成 `Start → Intent → 分支 → 变量聚合 → End` 的七节点结构。
-Intent 节点字段、`class01`/`class_other` 分支和 `Start.text` 查询引用来自真实租户 YAML；变量聚合节点未出现在示范 YAML 中，
-其 `VariableAggregator.MergeGroups` 仍需在目标租户上传验证。若租户拒绝该节点配置，请从同一租户导出一个包含变量聚合的最小工作流，再更新生成器。
+当前生成器和 `*.import.json` 已生成 `Start → Intent → 分支 → End` 的六节点结构。
+Intent 节点字段、`class01`/`class_other` 分支和 `Start.text` 查询引用来自真实租户 YAML。由于当前租户拒绝
+`VariableAggregator` 节点类型，两个 Code 节点都额外输出对象字段 `result`，End 直接接收
+`opportunity_result` 与 `non_opportunity_result`；worker 会递归找到实际执行分支中的 `is_opportunity/items`。
 
 ## 三层校验做了什么（`code_nodes/parse_and_validate.py`）
 

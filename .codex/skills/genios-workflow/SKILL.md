@@ -12,7 +12,7 @@ description: Create, update, inspect, and manually import this project's NK-Geni
 
 - 修改 `genios/prompts/step1_extract.md` 后需要重建工作流文件。
 - 修改 `genios/code_nodes/parse_and_validate.py` 后需要把代码同步进 Code 节点。
-- 需要检查 Start → Intent → 分支 → 变量聚合 → End 的节点和依赖是否完整。
+- 需要检查 Start → Intent → 分支 → End 的节点和依赖是否完整。
 - 需要准备 NK-GeniOS 的手动导入文件或排查导入格式问题。
 - 需要在字段抽取前增加“机会文章/非机会文章”的意图门控。
 
@@ -65,13 +65,13 @@ Start → 意图识别
           ├─ 机会文章 → 抽取 LLM → parse_and_validate.py ─┐
           └─ 非机会文章 → empty_result.py ────────────────┤
                                                            ↓
-                                                  汇合/变量聚合 → End
+                                                  两路结果对象 → End
 ```
 
 用户已选择使用意图识别先分流。机会定义为四类学生可参与机会；非机会分支返回
 `is_opportunity=false`、`items=[]`。Intent 的 `QueryVariable`、输出字段和 `class01`/`class_other` 端口已经按
-用户提供的真实租户 YAML 接入生成器。变量聚合节点没有出现在示范 YAML 中，生成器采用 `VariableAggregator.MergeGroups`
-草案，必须在目标租户上传确认。
+用户提供的真实租户 YAML 接入生成器。当前租户拒绝 `VariableAggregator` 节点类型，因此两个 Code 节点输出对象字段
+`result`，由 End 直接接收 `opportunity_result` 与 `non_opportunity_result`。
 
 ### 当前生成结构
 
@@ -81,7 +81,7 @@ Start → 意图识别
 Start ──→ Intent ──→ (class01) LLM ──→ Code ──┐
                     ╲ (class_other) Code ────┤
                                                ↓
-                                      VariableAggregator → End
+                                      两路 result 对象 → End
 ```
 
 - Start 提供 `article_id`、`mode`、`source`、`title`、`url`、`publish_time`、
@@ -90,7 +90,8 @@ Start ──→ Intent ──→ (class01) LLM ──→ Code ──┐
 - 机会分支的 LLM 输出使用 `raw_output`；输出格式设为 JSON，温度设为 0.05。
 - 机会 Code 必须同时引用 Start 原始字段和 LLM `raw_output`；非机会 Code 只引用
   `Start.article_id`，入口都是 `handler(inputs)`。
-- 变量聚合按字段取两条分支中第一个非空值，End 返回六个聚合组。
+- 两个 Code 都输出 `result` 对象；End 直接接收两路对象，worker 递归查找实际执行分支中的
+  `is_opportunity/items`。
 
 ## 导入边界
 
@@ -100,7 +101,7 @@ Start ──→ Intent ──→ (class01) LLM ──→ Code ──┐
 - 使用 `*.import.json`，工作流名称使用“校园机会信息抽取”。
 - 顶层 `Icon` 使用 `{"uri":"plugin_icon/workflow.png"}` 对象，以兼容当前租户把
   `Workflow.Icon` 解码为 `up.ObjInfo` 的接口；Intent 节点和分支依赖按真实导出结构使用，
-  变量聚合节点仍需上传验证。
+  End 采用两路对象变量直连，不使用被租户拒绝的 `VariableAggregator`。
 - 导入后确认模型在当前租户可用，并检查输出格式和温度。
 - 如果后续版本再次提示结构错误，再让用户从同一租户导出一个最小 Start → End 工作流，更新字段证据。
 - 不要把画布剪贴板包装层或其他平台的 ZIP/YAML 导出格式直接改名为 NK-GeniOS JSON。

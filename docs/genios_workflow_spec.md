@@ -10,8 +10,8 @@
 > ⚠️ 界面描述来自实测与推断。**和你看到的不一样时以你看到的为准，截图给我。**
 
 > **v3 门控设计（2026-10-15）**：用户提供的当前租户 YAML 已确认 Intent 节点的字段、分支端口和查询引用，
-> 生成器已经按此结构输出七节点导入文件。示范 YAML 没有变量聚合节点，因此 `VariableAggregator.MergeGroups`
-> 是基于本地 HiAgent 文档和同一 `Configs` 命名约定生成的待上传验证部分；如果目标租户拒绝它，请导出一个包含变量聚合的最小 YAML 再回填。
+> 生成器按此结构输出六节点导入文件。当前租户已明确拒绝 `VariableAggregator` 节点类型，因此两个 Code 节点各输出
+> 一个对象字段 `result`，由唯一 End 直接接收两路对象；worker 从实际执行分支对象中递归提取结果。
 
 ### 1.1 机会文章门控（手动接线）
 
@@ -25,7 +25,7 @@ Start
   ├─ 机会文章 → 抽取 LLM → parse_and_validate.py ─┐
   └─ 非机会文章 → empty_result.py ────────────────┤
                                                    ↓
-                                             变量聚合/汇合 → End
+                                             两路结果对象 → End
 ```
 
 在当前租户的画布上配置：
@@ -38,7 +38,7 @@ Start
 | 意图 2 | 名称 `Others`（界面可显示为非机会文章）；描述见 `intent_gate.md`；连接 `empty_result.py` |
 | 机会分支 | 继续使用现有 `step1_extract.md` → `parse_and_validate.py` |
 | 非机会分支 | 新增 Code 节点，粘贴 `genios/code_nodes/empty_result.py`，输入接 `Start.article_id` |
-| 汇合 | 两个 Code 分支接同一个变量聚合/汇合节点，再接唯一 End；按租户界面选择“取第一个非空对象”或等价配置 |
+| 汇合 | 租户不支持 `VariableAggregator`；两个 Code 都输出 `result` 对象，End 分别接 `opportunity_result` 与 `non_opportunity_result` |
 
 意图识别只做分类，不抽取机会字段。分类规则是：学生现在或之后可以报名、申请、招募、预约或参与，
 且属于 `竞赛`、`学术与学习交流`、`志愿活动与社会实践`、`校园文体活动` 四类之一，才选“机会文章”。
@@ -80,7 +80,7 @@ Start → 意图识别
           ├─ class01（机会） → 抽取 LLM → 代码01（三层校验） ─┐
           └─ class_other      → 代码02（空结果） ───────────────┤
                                                                ↓
-                                                     变量聚合 → End
+                                                两路 result 对象 → End
 ```
 
 ---
@@ -156,29 +156,24 @@ Start → 意图识别
 {"ok": true, "is_opportunity": true, "article_id": "…",
  "items": [ {…一条机会记录…} ],
  "issues": ["…校验发现的问题…"],
- "item_count": 1}
+ "item_count": 1,
+ "result": {"ok": true, "is_opportunity": true, "article_id": "…", "items": [{"…": "…"}],
+            "issues": [], "item_count": 1}}
 ```
 
 ### 2.5 非机会分支代码节点
 
 代码来自 `genios/code_nodes/empty_result.py`，只需要输入 `Start.article_id`，输出和机会分支相同的字段形状，
-其中 `is_opportunity=false`、`items=[]`。
+其中 `is_opportunity=false`、`items=[]`，并把同一结构放入 `result` 对象供 End 引用。
 
-### 2.6 变量聚合节点
+### 2.6 选择器节点（可选但建议）
 
-生成器为 `ok`、`is_opportunity`、`article_id`、`items`、`issues`、`item_count` 各建立一个聚合组，
-每组变量顺序为机会分支、非机会分支，策略是取第一个非空值。该节点的 `VariableAggregator.MergeGroups`
-字段是根据文档和当前租户 `Configs` 风格生成的草案，示范 YAML 没有提供该节点的可验证序列化样本；导入后若报 schema 错误，
-请从租户导出一个带变量聚合节点的最小 YAML。
+当前导入文件未加入选择器；如需按 `item_count` 做后续确定性路由，可在导入后追加。
 
-### 2.7 选择器节点（可选但建议）
+### 2.7 End 节点与 worker 交接
 
-条件：`代码节点.item_count == 0` → 直接走 End（非机会文章，不产生机会）。
-这样非机会文章不会在库里留下空记录。
-
-### 2.8 End 节点与 worker 交接
-
-End 节点原样返回代码节点对象，至少保留以下字段：
+End 节点接收两个对象变量：机会分支的 `opportunity_result` 和非机会分支的
+`non_opportunity_result`。未执行分支为空，worker 会递归找到实际执行对象；对象内部至少保留以下字段：
 
 ```json
 {"ok": true, "is_opportunity": true, "article_id": "…",
@@ -199,7 +194,7 @@ gateway worker 轮询 GeniOS 的 End 输出，递归找到 `items` 后逐条入�
 去重、推送与状态派生由 gateway 负责。代码节点的 `issues`、`confidence`、
 `low_confidence` 和 `date_conflict` 会随结果保留，方便后续审计。
 
-### 2.9 飞书推送（阶段 4，本版暂不做）
+### 2.8 飞书推送（阶段 4，本版暂不做）
 
 本版先只做到「End 返回清洗结果」。卡片与推送见 `genios/feishu_cards/`，由后续阶段接入。
 

@@ -5,8 +5,9 @@ The checked-in generator therefore follows the real export shape: ``Nodes``
 use the native node type names and dependencies are stored as
 ``Depends``/``NodeCode`` references. The prompt and code-node files remain
 the single source of truth for executable content. Intent fields and ports
-come from the supplied tenant export; the VariableAggregator block remains
-explicitly marked as needing upload verification.
+come from the supplied tenant export. The two branch results are wrapped as
+objects and connected directly to the single End node because this tenant
+rejects the VariableAggregator node type.
 """
 
 from __future__ import annotations
@@ -24,7 +25,6 @@ LLM_ID = "db5iont4shhbpg90ho1g"
 CODE_ID = "db5j46d4shhas0alssag"
 INTENT_ID = "db7q18d4shhbpg91ndfg"
 EMPTY_CODE_ID = "db7q1sd4shhbpg91ndm0"
-AGGREGATOR_ID = "db7q1ag4shhbpg91ndm1"
 
 START_FIELDS = [
     ("article_id", "string", True),
@@ -285,7 +285,7 @@ def _canonical_llm_node(system_prompt: str, model_name: str, model_type: str) ->
 
 
 def _code_output_schema() -> list[dict]:
-    return [
+    fields = [
         _schema_field("ok", "boolean"),
         _schema_field("is_opportunity", "boolean"),
         _schema_field("article_id", "string"),
@@ -299,6 +299,27 @@ def _code_output_schema() -> list[dict]:
         },
         _schema_field("issues", "list"),
         _schema_field("item_count", "integer"),
+    ]
+    return fields + [
+        {
+            "Name": "result",
+            "SubParameters": [
+                _schema_field("ok", "boolean"),
+                _schema_field("is_opportunity", "boolean"),
+                _schema_field("article_id", "string"),
+                {
+                    "Name": "items",
+                    "SubParameters": [
+                        _schema_field(name, value_type)
+                        for name, value_type in ITEM_OUTPUT_FIELDS
+                    ],
+                    "Type": TYPE_CODES["list_object"],
+                },
+                _schema_field("issues", "list"),
+                _schema_field("item_count", "integer"),
+            ],
+            "Type": TYPE_CODES["object"],
+        }
     ]
 
 
@@ -412,45 +433,19 @@ def _canonical_intent_node(system_prompt: str, model_name: str, model_type: str)
     }
 
 
-def _canonical_aggregator_node() -> dict:
-    return {
-        "Code": AGGREGATOR_ID,
-        "Configs": {
-            "VariableAggregator": {
-                "MergeGroups": [
-                    {
-                        "Name": f"Group{index}",
-                        "Variables": [
-                            _node_ref(f"positive_{name}", CODE_ID, name),
-                            _node_ref(f"negative_{name}", EMPTY_CODE_ID, name),
-                        ],
-                    }
-                    for index, (name, _value_type) in enumerate(CODE_OUTPUTS, start=1)
-                ]
-            }
-        },
-        "Depends": _depends(CODE_ID, EMPTY_CODE_ID),
-        "ErrorConfig": _error_config(),
-        "ID": AGGREGATOR_ID,
-        "Layout": {"X": 1360.0, "Y": 250.0},
-        "Name": "变量聚合01",
-        "Type": "VariableAggregator",
-    }
-
-
 def _canonical_end_node() -> dict:
     return {
         "Code": END_ID,
         "Configs": {
             "End": {
                 "InputVariables": [
-                    _node_ref(name, AGGREGATOR_ID, f"Group{index}")
-                    for index, (name, _value_type) in enumerate(END_OUTPUTS, start=1)
+                    _node_ref("opportunity_result", CODE_ID, "result"),
+                    _node_ref("non_opportunity_result", EMPTY_CODE_ID, "result"),
                 ],
                 "OutputType": "Variable",
             }
         },
-        "Depends": _depends(AGGREGATOR_ID),
+        "Depends": _depends(CODE_ID, EMPTY_CODE_ID),
         "ErrorConfig": _error_config(),
         "ID": END_ID,
         "Layout": {"X": 1456.5760080065, "Y": 373.5885313047},
@@ -502,7 +497,7 @@ def _canonical_workflow(
             "ToolMap": {},
             "WorkflowMap": {},
         },
-        "Desc": "校园机会信息抽取：Intent 门控，LLM 抽取，Code 三层校验，变量聚合后返回结果",
+        "Desc": "校园机会信息抽取：Intent 门控，LLM 抽取，Code 三层校验，分支结果直连 End",
         "DisplayName": workflow_name,
         "FlowType": "Workflow",
         "ID": workflow_id,
@@ -516,7 +511,6 @@ def _canonical_workflow(
             _canonical_llm_node(system_prompt, model_name, model_type),
             _canonical_code_node(code),
             _canonical_empty_code_node(empty_code),
-            _canonical_aggregator_node(),
         ],
         "UniqueName": workflow_id,
         # The YAML exporter writes this zero value as numeric 0, but the JSON
@@ -539,16 +533,16 @@ def _validate_graph(graph: dict) -> None:
     if not isinstance(icon, dict) or icon.get("uri") != WORKFLOW_ICON["uri"]:
         raise ValueError("generated workflow icon must be an ObjInfo-compatible object")
     nodes = graph.get("Nodes")
-    if not isinstance(nodes, list) or len(nodes) != 7:
-        raise ValueError("generated graph must contain exactly seven nodes")
+    if not isinstance(nodes, list) or len(nodes) != 6:
+        raise ValueError("generated graph must contain exactly six nodes")
     ids = {node.get("ID") for node in nodes}
-    expected = {START_ID, LLM_ID, CODE_ID, EMPTY_CODE_ID, INTENT_ID, AGGREGATOR_ID, END_ID}
+    expected = {START_ID, LLM_ID, CODE_ID, EMPTY_CODE_ID, INTENT_ID, END_ID}
     if ids != expected:
         raise ValueError(f"generated node IDs differ from expected: {ids}")
     types = [node.get("Type") for node in nodes]
     if types.count("Start") != 1 or types.count("End") != 1:
         raise ValueError("generated graph must contain exactly one start node and one end node")
-    if set(types) != {"Start", "LLM", "Intent", "Code", "VariableAggregator", "End"}:
+    if set(types) != {"Start", "LLM", "Intent", "Code", "End"}:
         raise ValueError(f"generated graph contains unsupported node types: {types}")
     expected_depends = {
         START_ID: [],
@@ -556,8 +550,7 @@ def _validate_graph(graph: dict) -> None:
         LLM_ID: [INTENT_ID, START_ID],
         CODE_ID: [INTENT_ID, LLM_ID, START_ID],
         EMPTY_CODE_ID: [INTENT_ID, START_ID],
-        AGGREGATOR_ID: [CODE_ID, EMPTY_CODE_ID],
-        END_ID: [AGGREGATOR_ID],
+        END_ID: [CODE_ID, EMPTY_CODE_ID],
     }
     for node in nodes:
         actual = [item.get("NodeCode") for item in node.get("Depends", [])]

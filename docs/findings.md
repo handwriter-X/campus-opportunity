@@ -1256,7 +1256,7 @@ Start → 意图识别
 故当时未猜测其 JSON schema，也未修改生成器或导入 JSON。新增的 `genios/prompts/intent_gate.md`、
 `genios/code_nodes/empty_result.py` 和 `docs/genios_workflow_spec.md` 第 1.1 节记录了手动接线方案。
 
-### 12. ✅ 已用真实 Intent 导出生成七节点工作流（2026-10-15）
+### 12. ✅ 已用真实 Intent 导出生成六节点工作流（2026-10-15）
 
 用户提供 `campus_opportunity_extract.import02-20261014-233430.yaml` 作为当前租户示范。该文件确认了：
 
@@ -1264,6 +1264,7 @@ Start → 意图识别
 - 意图端口使用 `class01` 和 `class_other`；查询变量采用 `Name/NodeCode/Path/RefType`，本项目接入为 `Start.text`；
 - 示例中的机会分支仍连到测试 LLM，兜底分支仍连到测试 Code，且 Intent 查询变量错误地引用了 `article_id`，所以不能直接作为最终工作流。
 
-生成器现已输出：Start、Intent、机会分支 LLM、机会校验 Code、非机会空结果 Code、VariableAggregator、唯一 End。
-`VariableAggregator.MergeGroups` 没有出现在用户示范 YAML 中，属于待当前租户上传验证的序列化部分；其余 Intent、分支端口、
-模型注册和时间/Icon 处理均来自真实导出或此前成功上传约束。当前只完成静态生成检查，尚未声称租户运行验证通过。
+生成器曾尝试加入 `VariableAggregator`，但租户返回 `node type: VariableAggregator is not support`。因此现改为：Start、Intent、
+机会分支 LLM、机会校验 Code、非机会空结果 Code、唯一 End。两个 Code 节点均额外返回对象字段 `result`，End 直接接两路对象，
+避免使用不支持的节点类型；worker 递归查找实际执行对象中的 `is_opportunity/items`。Intent、分支端口、模型注册和时间/Icon 处理均来自真实导出或此前成功上传约束。
+当前只完成静态生成检查，尚未声称租户运行验证通过。

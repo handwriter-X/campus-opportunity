@@ -33,7 +33,7 @@ def _collect(obj, keys, found=None):
 def handler(inputs):
     """GeniOS 代码节点入口：返回非机会文章的结构化空结果。"""
     collected = _collect(inputs, {"article_id"})
-    return {
+    result = {
         "ok": False,
         "is_opportunity": False,
         "article_id": collected.get("article_id"),
@@ -42,3 +42,8 @@ def handler(inputs):
         "issues": [],
         "item_count": 0,
     }
+    result["result"] = {
+        key: result[key]
+        for key in ("ok", "is_opportunity", "article_id", "items", "issues", "item_count")
+    }
+    return result

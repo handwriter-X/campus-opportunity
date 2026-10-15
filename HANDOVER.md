@@ -44,7 +44,7 @@
 | 东西 | 状态 |
 | --- | --- |
 | **三层校验**（`genios/code_nodes/parse_and_validate.py`） | ✅ 已接回 GeniOS Code 节点；机会分支继续使用，非机会分支返回空结果 |
-| **机会文章门控**（`genios/prompts/intent_gate.md`） | 🔄 已按真实租户 YAML 生成 Intent 分支工作流；变量聚合节点待租户上传验证 |
+| **机会文章门控**（`genios/prompts/intent_gate.md`） | 🔄 已按真实租户 YAML 生成 Intent 分支工作流；因租户不支持 VariableAggregator，两个结果对象直连唯一 End |
 | **飞书卡片** | 卡片 JSON 已有（`genios/feishu_cards/`），但推送目前发的是**纯文本** |
 | **多机会文章的处理** | 输出 Schema 已支持多个 `items`，但「本周活动一览」这类汇总推文还没有专项实测 |
 | **评测集** | `eval/samples/` 有 3 份样本，`labels/` 是空的，`run_eval.py` 没写 |
@@ -197,7 +197,7 @@ docker run -d --name we-mp-rss --restart unless-stopped \
 
 | 平台 | 要做什么 | 参照 |
 | --- | --- | --- |
-| **GeniOS** | 新建工作流（Start 9 参数 → 意图识别 → 机会抽取/非机会空结果 → 汇合 → End）→ 发布为**流程编排型**智能体 → 在「后端服务 API」建密钥 | `docs/genios_workflow_spec.md` + `genios/prompts/intent_gate.md` |
+| **GeniOS** | 新建工作流（Start 9 参数 → 意图识别 → 机会抽取/非机会空结果 → 唯一 End）→ 发布为**流程编排型**智能体 → 在「后端服务 API」建密钥 | `docs/genios_workflow_spec.md` + `genios/prompts/intent_gate.md` |
 | **飞书** | 建**自建应用** → 开机器人能力 → 开 `im:message` 权限 → 发布版本 → 拿到 App ID/Secret | `HANDOVER.md` 第四节 |
 | **微信** | We-MP-RSS 里做**两次扫码授权**（公众号后台 + 微信读书）→ 建消息任务 | `HANDOVER.md` 第四节 |
 
