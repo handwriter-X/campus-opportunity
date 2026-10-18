@@ -1,4 +1,5 @@
 {
+  "_comment": "样例。运行时由 gateway/app/card_kit.py::build_opportunity_card 生成，改了代码要同步改这里。完整预览：scripts/preview_cards.py --dry-run",
   "config": {
     "wide_screen_mode": true
   },
@@ -6,7 +7,7 @@
     "template": "turquoise",
     "title": {
       "tag": "plain_text",
-      "content": "校园机会 · 新发现"
+      "content": "🏆 发现新机会"
     }
   },
   "elements": [
@@ -14,7 +15,35 @@
       "tag": "div",
       "text": {
         "tag": "lark_md",
-        "content": "**南开大学第十五届程序设计竞赛**\n🏆 竞赛\n🕐 活动时间：11月2日（星期日）9:00-14:00\n⏰ **报名截止：10月20日 17:00**\n🚀 报名开始：10月8日 09:00\n👥 名额：不限\n📍 地点：计算机学院 A305\n🎯 参与对象：全校本科生"
+        "content": "🏆 **南开大学第十五届程序设计竞赛**　·　竞赛"
+      }
+    },
+    {
+      "tag": "div",
+      "text": {
+        "tag": "lark_md",
+        "content": "⏰ **报名截止 10月20日 17:00**　·　🕐 11月2日（星期日）9:00-14:00"
+      }
+    },
+    {
+      "tag": "div",
+      "text": {
+        "tag": "lark_md",
+        "content": "📍 计算机学院 A305　👥 一等奖 5 名、二等奖 10 名"
+      }
+    },
+    {
+      "tag": "div",
+      "text": {
+        "tag": "lark_md",
+        "content": "🎯 面向：全校本科生"
+      }
+    },
+    {
+      "tag": "div",
+      "text": {
+        "tag": "lark_md",
+        "content": "面向全校本科生的程序设计竞赛，分设一、二等奖。"
       }
     },
     {
@@ -45,7 +74,7 @@
       "elements": [
         {
           "tag": "plain_text",
-          "content": "信息由 AI 从公众号原文抽取，请以原文为准"
+          "content": "来源：南开大学计算机学院 · 由 AI 从原文抽取，请以原文为准"
         }
       ]
     }

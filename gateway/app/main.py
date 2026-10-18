@@ -18,6 +18,7 @@ from fastapi import FastAPI, Request
 from sqlalchemy import func, select
 
 from . import __version__
+from .bitable import BitableClient
 from .config import Settings, get_settings
 from .debug import router as debug_router
 from .genios_client import GeniosClient
@@ -97,7 +98,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             logger.warning("启动恢复：%s 篇文章重新入队", requeued)
 
         worker_task: asyncio.Task | None = None
-        worker = ArticleWorker(settings, session_factory, client, alerter, feishu_app)
+        # 机会数据的去向：**只写【机会汇总】表**（决策 D9），不再进 SQLite。
+        # 没配 BITABLE_ENABLED 时 worker 会自动退回写本地库（见 _store_opportunities）。
+        bitable = BitableClient(settings, http, feishu_app)
+        worker = ArticleWorker(
+            settings, session_factory, client, alerter, feishu_app, bitable=bitable
+        )
         app.state.worker = worker
         if settings.worker_enabled:
             worker_task = asyncio.create_task(worker.run_forever())

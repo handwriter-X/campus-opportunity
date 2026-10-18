@@ -93,7 +93,11 @@ def _safe_json(response: httpx.Response) -> Any:
 
 
 def text_card(title: str, lines: list[str], *, template: str = "blue") -> dict[str, Any]:
-    """通用告警/通知卡片。机会卡片在 genios/feishu_cards/ 下（由 GeniOS 工作流发送）。"""
+    """通用告警/通知卡片。
+
+    机会卡片的版式在 `app/card_kit.py::build_opportunity_card`（模块一推送用它），
+    组队卡片在 `app/match_cards.py`。
+    """
     body = "\n".join(lines) if lines else "（无内容）"
     return {
         "config": {"wide_screen_mode": True},

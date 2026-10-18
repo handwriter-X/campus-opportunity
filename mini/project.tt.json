@@ -1,0 +1,13 @@
+{
+  "miniprogramRoot": "./",
+  "projectname": "opportunity-pool-mini",
+  "description": "飞书机会池小程序",
+  "appid": "cli_aa4ede6a1fb8dbb5",
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "postcss": false,
+    "minified": false
+  },
+  "condition": {}
+}

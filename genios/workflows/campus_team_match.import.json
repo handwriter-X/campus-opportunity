@@ -1,0 +1,708 @@
+{
+  "DLVersion": "v2",
+  "Depends": {
+    "AppMap": {},
+    "DataSourceMap": {},
+    "DatabaseMap": {},
+    "KnowledgeMap": {},
+    "ModelMap": {
+      "d9a3s2qldp7us4m2uc6g": {
+        "Desc": "DeepSeek-V4.1是深度求索全新推出的旗舰混合推理模型，支持自适应深度思考与通用对话双模式。",
+        "ID": "d9a3s2qldp7us4m2uc6g",
+        "LogoPath": "",
+        "Name": "deepseek v4.1 flash"
+      }
+    },
+    "PluginMap": {},
+    "QADataSetMap": {},
+    "TermDatasetMap": {},
+    "ToolMap": {},
+    "WorkflowMap": {}
+  },
+  "Desc": "组队匹配：插件读画像 → Code 硬筛 → LLM 精排与理由 → Code 校验与防幻觉映射 → Code 组装写回",
+  "DisplayName": "校园组队匹配",
+  "FlowType": "Workflow",
+  "ID": "db5igk54shhas0als37h",
+  "Icon": {
+    "uri": "plugin_icon/workflow.png"
+  },
+  "LogoPath": "",
+  "MetaType": "Workflow",
+  "Nodes": [
+    {
+      "Code": "db5igk54shhas0als382",
+      "Configs": {
+        "Start": {
+          "InputSchema": [
+            {
+              "Name": "match_id",
+              "Type": 0,
+              "Desc": "本次匹配的幂等键（一般用需求的记录 ID）",
+              "Required": true
+            },
+            {
+              "Name": "request_json",
+              "Type": 0,
+              "Desc": "组队需求 + 发起人画像的 JSON 字符串",
+              "Required": true
+            },
+            {
+              "Name": "candidates_json",
+              "Type": 0,
+              "Desc": "候选队友画像数组的 JSON 字符串；接了多维表格插件后留空即可"
+            },
+            {
+              "Name": "request_record_id",
+              "Type": 0,
+              "Desc": "【组队需求】里那一行的 record_id —— 匹配结果要写回它"
+            },
+            {
+              "Name": "top_n",
+              "Type": 0,
+              "Desc": "最多推荐几人，默认 3"
+            },
+            {
+              "Name": "min_score",
+              "Type": 0,
+              "Desc": "低于此分不推荐，默认 70"
+            }
+          ],
+          "OutputSchema": [
+            {
+              "Name": "match_id",
+              "Type": 0,
+              "Desc": "本次匹配的幂等键（一般用需求的记录 ID）",
+              "Required": true
+            },
+            {
+              "Name": "request_json",
+              "Type": 0,
+              "Desc": "组队需求 + 发起人画像的 JSON 字符串",
+              "Required": true
+            },
+            {
+              "Name": "candidates_json",
+              "Type": 0,
+              "Desc": "候选队友画像数组的 JSON 字符串；接了多维表格插件后留空即可"
+            },
+            {
+              "Name": "request_record_id",
+              "Type": 0,
+              "Desc": "【组队需求】里那一行的 record_id —— 匹配结果要写回它"
+            },
+            {
+              "Name": "top_n",
+              "Type": 0,
+              "Desc": "最多推荐几人，默认 3"
+            },
+            {
+              "Name": "min_score",
+              "Type": 0,
+              "Desc": "低于此分不推荐，默认 70"
+            }
+          ]
+        }
+      },
+      "ErrorConfig": {
+        "ErrorConfigType": "None"
+      },
+      "ID": "db5igk54shhas0als382",
+      "Layout": {
+        "X": 493.0,
+        "Y": 246.0
+      },
+      "Name": "Start",
+      "Type": "Start"
+    },
+    {
+      "Code": "db5igk54shhas0als383",
+      "Configs": {
+        "End": {
+          "InputVariables": [
+            {
+              "Name": "ok",
+              "NodeCode": "db5j46d4shhas0alssak",
+              "Path": "ok",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "match_id",
+              "NodeCode": "db5j46d4shhas0alssak",
+              "Path": "match_id",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "matches",
+              "SubParameters": [
+                {
+                  "Name": "open_id",
+                  "Type": 0
+                },
+                {
+                  "Name": "idx",
+                  "Type": 1
+                },
+                {
+                  "Name": "score",
+                  "Type": 3
+                },
+                {
+                  "Name": "reason",
+                  "Type": 0
+                },
+                {
+                  "Name": "invite_reason",
+                  "Type": 0
+                }
+              ],
+              "Type": 9,
+              "NodeCode": "db5j46d4shhas0alssak",
+              "Path": "matches",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "match_count",
+              "NodeCode": "db5j46d4shhas0alssak",
+              "Path": "match_count",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "issues",
+              "NodeCode": "db5j46d4shhas0alssak",
+              "Path": "issues",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "will_update",
+              "NodeCode": "db5j46d4shhas0alssak",
+              "Path": "will_update",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "record_id",
+              "NodeCode": "db5j46d4shhas0alssak",
+              "Path": "record_id",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "recommended_count",
+              "NodeCode": "db5j46d4shhas0alssak",
+              "Path": "recommended_count",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "candidate_ids",
+              "NodeCode": "db5j46d4shhas0alssai",
+              "Path": "candidate_ids",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "candidate_count",
+              "NodeCode": "db5j46d4shhas0alssai",
+              "Path": "candidate_count",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "input_count",
+              "NodeCode": "db5j46d4shhas0alssai",
+              "Path": "input_count",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "dropped",
+              "NodeCode": "db5j46d4shhas0alssai",
+              "Path": "dropped",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "candidate_text",
+              "NodeCode": "db5j46d4shhas0alssai",
+              "Path": "candidate_text",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "filter_version",
+              "NodeCode": "db5j46d4shhas0alssai",
+              "Path": "code_version",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "validate_version",
+              "NodeCode": "db5j46d4shhas0alssaj",
+              "Path": "code_version",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "build_version",
+              "NodeCode": "db5j46d4shhas0alssak",
+              "Path": "code_version",
+              "RefType": "node_field"
+            }
+          ],
+          "OutputType": "Variable"
+        }
+      },
+      "Depends": [
+        {
+          "NodeCode": "db5igk54shhas0als382"
+        },
+        {
+          "NodeCode": "db5j46d4shhas0alssai"
+        },
+        {
+          "NodeCode": "db5j46d4shhas0alssaj"
+        },
+        {
+          "NodeCode": "db5j46d4shhas0alssak"
+        }
+      ],
+      "ErrorConfig": {
+        "ErrorConfigType": "None"
+      },
+      "ID": "db5igk54shhas0als383",
+      "Layout": {
+        "X": 1740.0,
+        "Y": 340.0
+      },
+      "Name": "End",
+      "Type": "End"
+    },
+    {
+      "Code": "db5j46d4shhas0alssai",
+      "Configs": {
+        "Code": {
+          "Code": "\"\"\"GeniOS 代码节点：组队匹配 · 第一段「硬筛 + 拼文本」。\n\n对应设计文档 `docs/module2_team_matching.md` §5.2 / §5.3。\n\n## 这个节点干两件事\n\n1. **硬筛**：用枚举字段（校区 / 每周可投入 / 技能）把候选从几百人压到几十人。\n   这是**查询不是理解**——所以放在代码节点里，不消耗大模型。\n2. **拼文本**：把结构化的一行画像拼成一段自然语言。\n   **没有这一步，后面的「语义匹配」无从谈起**——大模型看不懂字典，看得懂句子。\n\n## 实测依据\n\n- 多维表格的多选字段筛选实测可用（`docs/findings.md` S7），但这里刻意**在代码节点里做**：\n  这样工作流不依赖插件，换成 gateway 供数也能跑。\n- 代码节点契约：必须 `def handler(inputs): ... return {...}`，不能顶层 `return`\n  （`docs/findings.md` Q3）。\n\n## 硬筛的两条计数原则\n\n- **约束只在「需求方和候选方都有值」时生效**。候选没填校区 → 不算冲突，放行交给大模型判断。\n  否则选填字段为空的好苗子会被误杀。\n- 每次淘汰都记进 `dropped`，**淘汰原因要可见**——这是答辩时能讲的东西。\n\"\"\"\n\nimport json\n\n# 节点版本号。**必须手工递增** —— 它会被写到 End 的输出里，\n# 用来判定\"平台上跑的到底是哪一版\"，免得来回猜。\n# 整数，避免输出声明里还要改类型（平台默认就是 integer）\nCODE_VERSION = 202610145\n\n# 每周可投入的序数。投入度是「至少」语义：候选人投入 >= 需求期望即可\nHOURS_ORDER = {\"<5h\": 0, \"5-10h\": 1, \"10-20h\": 2, \">20h\": 3}\n\n\n# ---------------------------------------------------------------- 输入收集\n\n\ndef _collect(obj, keys, found=None):\n    \"\"\"递归扫描输入结构，收集需要的字段。\n\n    节点连线的产物形状不确定（可能平铺、可能嵌一层、可能是 JSON 字符串），\n    所以不假设形状，直接深挖。与 `parse_and_validate.py::_collect` 同一套路。\n    \"\"\"\n    if found is None:\n        found = {}\n    if isinstance(obj, str):\n        s = obj.strip()\n        if s[:1] in \"{[\":\n            try:\n                _collect(json.loads(s), keys, found)\n            except (ValueError, TypeError):\n                pass\n        return found\n    if isinstance(obj, dict):\n        for k, v in obj.items():\n            if k in keys and k not in found:\n                found[k] = v\n            _collect(v, keys, found)\n    elif isinstance(obj, list):\n        for v in obj:\n            _collect(v, keys, found)\n    return found\n\n\ndef _as_obj(value):\n    \"\"\"把一个可能是 JSON 字符串的值解析成 dict；失败返回 {}。\"\"\"\n    if isinstance(value, dict):\n        return value\n    if isinstance(value, str):\n        s = value.strip()\n        if s[:1] == \"{\":\n            try:\n                data = json.loads(s)\n            except (ValueError, TypeError):\n                return {}\n            return data if isinstance(data, dict) else {}\n    return {}\n\n\ndef _as_list(value):\n    \"\"\"把一个可能是 JSON 字符串 / 单值 / 列表的值统一成 list。\"\"\"\n    if isinstance(value, list):\n        return value\n    if isinstance(value, str):\n        s = value.strip()\n        if s[:1] == \"[\":\n            try:\n                data = json.loads(s)\n            except (ValueError, TypeError):\n                data = None\n            if isinstance(data, list):\n                return data\n        return [value] if s else []\n    if value in (None, \"\"):\n        return []\n    return [value]\n\n\ndef _flatten_text(value):\n    \"\"\"把飞书返回的字段值压成字符串。\n\n    ⚠️ **实测（2026-10-14，多维表格插件真实返回）**：**文本字段**是**富文本分段**\n        `[{\"text\": \"张三\", \"type\": \"text\"}]`\n    而**单选/多选**是普通字符串 / 字符串数组：\n        `\"年级\": \"大二\"`、`\"技能标签\": [\"编程\", \"设计\"]`\n\n    不处理分段就会把 `{'text': '张三', 'type': 'text'}` 当成姓名 ——\n    而且**不报错**，只是画像文本变成一堆垃圾。见 `docs/findings.md` S7。\n    \"\"\"\n    if value is None:\n        return \"\"\n    if isinstance(value, str):\n        return value.strip()\n    if isinstance(value, dict):\n        for key in (\"text\", \"name\", \"id\"):\n            inner = value.get(key)\n            if isinstance(inner, str) and inner.strip():\n                return inner.strip()\n        return \"\"\n    if isinstance(value, list):\n        parts = []\n        for item in value:\n            text = _flatten_text(item)\n            if text and text not in parts:\n                parts.append(text)\n        return \"、\".join(parts)\n    return str(value).strip()\n\n\ndef _has_records(value):\n    \"\"\"判断一个值里**真的有没有候选记录**。\n\n    ⚠️ 这个函数是 2026-10-14 被一个真实 bug 逼出来的：\n    试运行时 `candidates_json` 被填成了 `\"{}\"`（空对象字符串），\n    而 `_as_list(\"{}\")` 会返回 `[\"{}\"]` —— **非空**，\n    于是它\"赢\"了，插件的 `items`（5 条真记录）永远轮不到。\n\n    教训：判断\"有没有值\"不能只看空串，要看**里面有没有东西**。\n    \"\"\"\n    if value is None or value == \"\":\n        return False\n    if isinstance(value, str):\n        s = value.strip()\n        if s[:1] not in \"{[\":\n            return True  # 普通字符串，可能是单条记录的 JSON\n        try:\n            value = json.loads(s)\n        except (ValueError, TypeError):\n            return False\n    if isinstance(value, dict):\n        if not value:\n            return False\n        for key in (\"items\", \"records\"):\n            if key in value and value.get(key):\n                return True\n        # 只有元信息（分页游标之类）不算有记录\n        meta = {\"has_more\", \"page_token\", \"total\", \"code\", \"msg\", \"error\"}\n        return bool(set(value) - meta)\n    if isinstance(value, list):\n        return any(item not in ({}, \"\", None) for item in value)\n    return False\n\n\ndef _as_str_list(value):\n    \"\"\"转成字符串列表，丢掉空值。用于技能这类多选字段。\"\"\"\n    out = []\n    for item in _as_list(value):\n        text = _flatten_text(item)\n        if text and text not in out:\n            out.append(text)\n    return out\n\n\ndef _hours_rank(value):\n    \"\"\"每周可投入 → 序数；认不出来返回 None（不参与比较）。\"\"\"\n    for item in _as_list(value):\n        text = _flatten_text(item)\n        if text in HOURS_ORDER:\n            return HOURS_ORDER[text]\n    return None\n\n\ndef _campus_of(obj):\n    for key in (\"campus\", \"所在校区\"):\n        if key in obj:\n            text = _flatten_text(obj.get(key))\n            if text:\n                return text\n    return \"\"\n\n\ndef _skills_of(obj):\n    for key in (\"skills\", \"技能标签\"):\n        if key in obj:\n            return _as_str_list(obj.get(key))\n    return []\n\n\ndef _open_ids_of(obj):\n    \"\"\"从人员字段里取 open_id。\n\n    ⚠️ 多维表格 v1 接口的人员字段返回的是\n    `[{\"id\": \"ou_…\", \"name\": \"谢国辉\", \"email\": …, \"en_name\": …}]`\n    —— **要的是 `id`，不是 `name`**。按名字取会把展示名当成账号，\n    而且**不报错**，只会一路错到飞书推送那一步。这里用 `ou_` 前缀兜底。\n\n    （实测依据：`docs/findings.md` S7 实测记录）\n    \"\"\"\n    for key in (\"open_id\", \"owner_open_id\", \"飞书账号\", \"发起人\", \"负责人\"):\n        if key not in obj:\n            continue\n        out = []\n        for item in _as_list(obj.get(key)):\n            if isinstance(item, dict):\n                value = item.get(\"id\") or item.get(\"open_id\")\n            else:\n                value = item\n            text = str(value).strip() if value is not None else \"\"\n            if text.startswith(\"ou_\"):\n                out.append(text)\n        if out:\n            return out\n    return []\n\n\ndef _unwrap_record(raw):\n    \"\"\"把一条记录拆成「字段字典」。\n\n    v1 接口返回的是 `{\"fields\": {…}, \"record_id\": \"rec…\", \"id\": \"rec…\"}`，\n    而 gateway 供数或手工试运行时是**平的字段字典**。两种形状都要吃，\n    否则接上插件的那一刻就会全线读不到字段（且不报错）。\n    \"\"\"\n    if not isinstance(raw, dict):\n        return {}\n    inner = raw.get(\"fields\")\n    if isinstance(inner, dict):\n        merged = dict(inner)\n        record_id = raw.get(\"record_id\") or raw.get(\"id\")\n        if record_id and \"record_id\" not in merged:\n            merged[\"record_id\"] = record_id\n        return merged\n    return raw\n\n\ndef _text_of(obj, *keys, default=\"未填写\"):\n    for key in keys:\n        if key in obj:\n            text = _flatten_text(obj.get(key))\n            if text:\n                return text\n    return default\n\n\n# ---------------------------------------------------------------- 拼文本\n\n\ndef _profile_line(index, cand):\n    \"\"\"把一条候选人画像拼成一行自然语言。`[index]` 是给大模型回传的锚点。\"\"\"\n    parts = []\n    grade = _text_of(cand, \"grade\", \"年级\", default=\"\")\n    college = _text_of(cand, \"college\", \"major\", \"学院\", \"专业\", default=\"\")\n    head = \" · \".join(p for p in (grade, college) if p)\n    if head:\n        parts.append(head)\n\n    skills = _skills_of(cand)\n    if skills:\n        parts.append(\"技能：\" + \"、\".join(skills))\n\n    campus = _campus_of(cand)\n    if campus:\n        parts.append(\"校区：\" + campus)\n\n    hours = _text_of(cand, \"weekly_hours\", \"每周可投入\", default=\"\")\n    if hours:\n        parts.append(\"每周可投入：\" + hours)\n\n    direction = _as_str_list(cand.get(\"direction\") or cand.get(\"意向方向\") or [])\n    if direction:\n        parts.append(\"意向方向：\" + \"、\".join(direction))\n\n    line = \"[%d] %s\" % (index, \" · \".join(parts) if parts else \"（画像信息很少）\")\n\n    experience = _text_of(cand, \"experience\", \"过往经历\", default=\"\")\n    if experience and experience != \"未填写\":\n        line += \"\\n    经历：\" + experience\n\n    intro = _text_of(cand, \"intro\", \"一句话自我介绍\", default=\"\")\n    if intro and intro != \"未填写\":\n        line += \"\\n    自述：\" + intro\n\n    return line\n\n\ndef _request_text(req):\n    \"\"\"把需求 + 发起人画像拼成一段。**发起人画像必须在这里**——\n    没有「发起人自己会什么」，大模型就只能找『像需求的人』，而不是『补需求的人』。\"\"\"\n    lines = []\n    title = _text_of(req, \"title\", \"需求标题\", default=\"\")\n    if title:\n        lines.append(\"标题：\" + title)\n    lines.append(\"项目类型：\" + _text_of(req, \"project_type\", \"项目类型\"))\n\n    goal = _text_of(req, \"goal\", \"预期目标\", default=\"\")\n    if goal:\n        lines.append(\"预期目标：\" + goal)\n\n    needed = _as_str_list(req.get(\"skills_needed\") or req.get(\"需要的技能\") or [])\n    lines.append(\"需要什么技能：\" + (\"、\".join(needed) if needed else \"未指定\"))\n\n    campus = _campus_of(req)\n    lines.append(\"所在校区：\" + (campus or \"未指定\"))\n    lines.append(\"期望每周投入：\" + _text_of(req, \"weekly_hours\", \"期望每周投入\"))\n\n    major_pref = _text_of(req, \"major_pref\", \"专业背景偏好\", default=\"\")\n    if major_pref:\n        lines.append(\"专业背景偏好：\" + major_pref)\n    schedule = _text_of(req, \"schedule\", \"时间安排\", default=\"\")\n    if schedule:\n        lines.append(\"时间安排：\" + schedule)\n\n    owner = _as_obj(req.get(\"owner_profile\") or req.get(\"发起人画像\") or {})\n    owner_name = _text_of(owner, \"name\", \"姓名\", default=_text_of(req, \"owner_name\", \"发起人\", default=\"发起人\"))\n    owner_bits = []\n    for key, label in ((\"grade\", \"年级\"), (\"college\", \"学院\"), (\"major\", \"专业\")):\n        value = _text_of(owner, key, label, default=\"\")\n        if value:\n            owner_bits.append(value)\n    owner_skills = _skills_of(owner)\n    if owner_skills:\n        owner_bits.append(\"技能：\" + \"、\".join(owner_skills))\n    owner_hours = _text_of(owner, \"weekly_hours\", \"每周可投入\", default=\"\")\n    if owner_hours:\n        owner_bits.append(\"每周可投入：\" + owner_hours)\n    owner_campus = _campus_of(owner)\n    if owner_campus and not campus:\n        owner_bits.append(\"校区：\" + owner_campus)\n\n    lines.append(\"\")\n    lines.append(\"【发起人本人】\" + owner_name + (\"（\" + \" · \".join(owner_bits) + \"）\" if owner_bits else \"\"))\n    owner_exp = _text_of(owner, \"experience\", \"过往经历\", default=\"\")\n    if owner_exp and owner_exp != \"未填写\":\n        lines.append(\"发起人经历：\" + owner_exp)\n\n    return \"\\n\".join(lines)\n\n\n# ---------------------------------------------------------------- 入口\n\n\ndef handler(inputs):\n    collected = _collect(\n        inputs,\n        (\"request_json\", \"candidates_json\", \"candidates\", \"records\", \"items\",\n         \"top_n\", \"min_score\", \"match_id\"),\n    )\n\n    request = _as_obj(collected.get(\"request_json\"))\n    if not request:\n        # 容错：调用方可能直接把需求对象平铺在 Start 参数里\n        request = input_if_dict(inputs, \"request\") or {}\n\n    # 两种上游都要能吃：\n    # - gateway / 手工试运行：`candidates_json`（JSON 字符串）\n    # - 多维表格插件 `search_records`：结构化对象，记录在 `items` / `records` 里\n    candidate_source = \"\"\n    candidate_raw = None\n    candidates = []\n    empty_sources = []\n    for key in (\"candidates_json\", \"candidates\", \"records\", \"items\"):\n        value = collected.get(key)\n        if not _has_records(value):\n            # 记下\"有值但是空的\"来源 —— 这正是上一次那个 `\"{}\"` 的情形\n            if value not in (None, \"\"):\n                empty_sources.append(key)\n            continue\n        candidates = _as_list(value)\n        candidate_source, candidate_raw = key, value\n        break\n    candidates = [c for c in candidates if isinstance(c, dict) or isinstance(c, str)]\n\n    match_id = collected.get(\"match_id\") or request.get(\"match_id\") or \"\"\n    top_n = _safe_int(collected.get(\"top_n\"), 3)\n    min_score = _safe_int(collected.get(\"min_score\"), 70)\n\n    owner_ids = set(_open_ids_of(request))\n    need_skills = set(_as_str_list(request.get(\"skills_needed\") or request.get(\"需要的技能\") or []))\n    req_campus = _campus_of(request)\n    req_hours = _hours_rank(request.get(\"weekly_hours\") or request.get(\"期望每周投入\"))\n\n    dropped = {\"本人\": 0, \"缺少飞书账号\": 0, \"校区不符\": 0, \"投入不足\": 0,\n               \"技能不匹配\": 0, \"无法解析\": 0}\n    kept = []\n    for raw in candidates:\n        cand = _unwrap_record(_as_obj(raw) if isinstance(raw, str) else raw)\n        if not cand:\n            # 这里是\"收到了东西但解析不出字段\"。**必须计数** ——\n            # 2026-10-14 就是因为这里静默跳过，出现\"1 个进去 0 个淘汰 0 个留下\"\n            # 这种自相矛盾的结果，白查了一轮。\n            dropped[\"无法解析\"] += 1\n            continue\n\n        cand_ids = set(_open_ids_of(cand))\n        if owner_ids and cand_ids & owner_ids:\n            dropped[\"本人\"] += 1\n            continue\n\n        # 没有飞书账号就没法通知、也没法写回匹配记录，直接淘汰（否则会一路错到推送那步）\n        if not cand_ids:\n            dropped[\"缺少飞书账号\"] += 1\n            continue\n\n        # ① 校区：只在两边都有值时才当硬约束\n        cand_campus = _campus_of(cand)\n        if req_campus and cand_campus and cand_campus != req_campus:\n            dropped[\"校区不符\"] += 1\n            continue\n\n        # ② 每周可投入：候选人 >= 需求期望（投入度是「至少」语义）\n        cand_hours = _hours_rank(cand.get(\"weekly_hours\") or cand.get(\"每周可投入\"))\n        if req_hours is not None and cand_hours is not None and cand_hours < req_hours:\n            dropped[\"投入不足\"] += 1\n            continue\n\n        # ③ 技能：交集非空。候选没填技能 → 放行\n        cand_skills = set(_skills_of(cand))\n        if need_skills and cand_skills and not (need_skills & cand_skills):\n            dropped[\"技能不匹配\"] += 1\n            continue\n\n        kept.append(cand)\n\n    # 超出上限时截断，避免大模型输入过长；截断是「谁先进表谁优先」，可接受\n    max_candidates = 60\n    truncated = max(0, len(kept) - max_candidates)\n    kept = kept[:max_candidates]\n\n    lines = []\n    for index, cand in enumerate(kept):\n        lines.append(_profile_line(index, cand))\n\n    candidate_text = \"\\n\".join(lines) if lines else \"（没有通过硬筛的候选人）\"\n\n    # 编号顺序必须与 candidate_text 里的 [idx] 严格一一对应，\n    # 否则下游 match_validate 的映射就会整体错位\n    candidate_ids = [_open_ids_of(cand)[0] for cand in kept]\n\n    issues = []\n    if not request:\n        issues.append(\"未收到需求（request_json 为空或解析失败）\")\n    if not candidates:\n        issues.append(\"未收到候选人（candidates_json 为空）\")\n    if not kept and candidate_raw is not None:\n        # 自诊断：一次运行就能看出\"数据没接到\"还是\"接到了但形状不对\"\n        issues.append(\n            \"调试·候选来自 %r 键；共 %d 个元素；原始值类型=%s；预览=%s\"\n            % (candidate_source, len(candidates),\n               type(candidate_raw).__name__, repr(candidate_raw)[:200])\n        )\n    elif not kept:\n        issues.append(\n            \"调试·没拿到任何候选值；代码01 实际收到的键=%r\" % (sorted(collected.keys()),)\n        )\n    if not kept and empty_sources:\n        issues.append(\n            \"调试·这些键**有值但是空的**，已被跳过：%r —— \"\n            \"若里面有 candidates_json，说明试运行时给它填了 `{}`；应该留空\" % (empty_sources,)\n        )\n    if truncated:\n        issues.append(\"候选人超过 %d 人，已截断 %d 人\" % (max_candidates, truncated))\n    if not kept:\n        issues.append(\"硬筛后没有剩余候选人\")\n\n    return {\n        \"ok\": bool(request) and bool(kept),\n        \"code_version\": CODE_VERSION,\n        \"match_id\": match_id,\n        \"request_text\": _request_text(request),\n        \"candidate_text\": candidate_text,\n        \"candidate_ids\": candidate_ids,\n        \"candidate_count\": len(kept),\n        \"input_count\": len(candidates),\n        \"dropped\": dropped,\n        \"top_n\": top_n,\n        \"min_score\": min_score,\n        \"issues\": issues,\n    }\n\n\ndef input_if_dict(inputs, key):\n    if isinstance(inputs, dict):\n        value = inputs.get(key)\n        if isinstance(value, dict):\n            return value\n    return None\n\n\ndef _safe_int(value, default):\n    try:\n        return int(str(value).strip())\n    except (TypeError, ValueError):\n        return default\n",
+          "InputVariables": [
+            {
+              "Name": "match_id",
+              "NodeCode": "db5igk54shhas0als382",
+              "Path": "match_id",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "request_json",
+              "NodeCode": "db5igk54shhas0als382",
+              "Path": "request_json",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "candidates_json",
+              "NodeCode": "db5igk54shhas0als382",
+              "Path": "candidates_json",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "request_record_id",
+              "NodeCode": "db5igk54shhas0als382",
+              "Path": "request_record_id",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "top_n",
+              "NodeCode": "db5igk54shhas0als382",
+              "Path": "top_n",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "min_score",
+              "NodeCode": "db5igk54shhas0als382",
+              "Path": "min_score",
+              "RefType": "node_field"
+            }
+          ],
+          "Language": 1,
+          "OutputSchema": [
+            {
+              "Name": "ok",
+              "Type": 2
+            },
+            {
+              "Name": "code_version",
+              "Type": 1
+            },
+            {
+              "Name": "match_id",
+              "Type": 0
+            },
+            {
+              "Name": "request_text",
+              "Type": 0
+            },
+            {
+              "Name": "candidate_text",
+              "Type": 0
+            },
+            {
+              "Name": "candidate_ids",
+              "Type": 5
+            },
+            {
+              "Name": "candidate_count",
+              "Type": 1
+            },
+            {
+              "Name": "input_count",
+              "Type": 1
+            },
+            {
+              "Name": "dropped",
+              "Type": 4
+            },
+            {
+              "Name": "top_n",
+              "Type": 1
+            },
+            {
+              "Name": "min_score",
+              "Type": 1
+            },
+            {
+              "Name": "issues",
+              "Type": 5
+            }
+          ],
+          "Retries": 0,
+          "TimeoutSeconds": 120
+        }
+      },
+      "Depends": [
+        {
+          "NodeCode": "db5igk54shhas0als382"
+        }
+      ],
+      "ErrorConfig": {
+        "ErrorConfigType": "None"
+      },
+      "ID": "db5j46d4shhas0alssai",
+      "Layout": {
+        "X": 770.0,
+        "Y": 120.0
+      },
+      "Name": "代码01",
+      "Type": "Code"
+    },
+    {
+      "Code": "db5iont4shhbpg90ho1h",
+      "Configs": {
+        "LLM": {
+          "CurrentTimeEnabled": false,
+          "EnableChatHistories": false,
+          "InputVariables": [
+            {
+              "Name": "request_text",
+              "NodeCode": "db5j46d4shhas0alssai",
+              "Path": "request_text",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "candidate_count",
+              "NodeCode": "db5j46d4shhas0alssai",
+              "Path": "candidate_count",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "candidate_text",
+              "NodeCode": "db5j46d4shhas0alssai",
+              "Path": "candidate_text",
+              "RefType": "node_field"
+            }
+          ],
+          "MaxTokens": 2048,
+          "ModelFeatureList": [
+            "streaming",
+            "tool-call",
+            "vision",
+            "reasoning",
+            "reasoning-effort",
+            "reasoning-switch"
+          ],
+          "ModelID": "d9a3s2qldp7us4m2uc6g",
+          "ModelInteractiveMode": "direct",
+          "ModelName": "deepseek v4.1 flash",
+          "OutputFormat": "json",
+          "OutputSchema": [
+            {
+              "Name": "raw_output",
+              "Type": 0
+            },
+            {
+              "Name": "reasoning_content",
+              "Type": 0
+            }
+          ],
+          "Prompt": "【组队需求】\n{{request_text}}\n\n【候选队友】共 {{candidate_count}} 人\n{{candidate_text}}\n\n请从上面这些候选人里挑出最适合和发起人组队的，按契合度从高到低给出编号、分数和理由。",
+          "PromptConfig": null,
+          "ReasoningEffortType": "medium",
+          "ReasoningMode": true,
+          "ReasoningSwitch": null,
+          "ReasoningSwitchType": "enabled",
+          "Retries": 0,
+          "SystemPrompt": "你是校园组队匹配助手。任务：从一批候选人里挑出**最适合和发起人组队**的人，并给出理由。\n\n【最重要的一条：你要找的是「互补」，不是「相似」】\n\n发起人要的是「能补上他短板的人」，不是「和他一样的人」。\n先看清楚【发起人本人】会什么、缺什么，再判断谁补得上。\n\n反例：需求写「要会设计的」，候选人 A 技能=设计、候选人 B 技能=编程（而发起人自己会编程）。\n      A 和需求\"很像\"，但**该选 B** —— 因为发起人已经会编程了，他缺的是设计。\n      ⚠️ 如果只按「谁和需求描述像」来排，就会把 B 排到最后，这是错的。\n\n【铁律】\n1. **只回传候选人的编号 `idx`（就是候选人列表里 `[0]` `[1]` 那个数字），绝对不要写任何 ID、\n   姓名之外的账号信息。** 你也不知道候选人的真实账号，写出来一定是错的。\n2. `idx` 必须是列表里真实存在的编号。**没有合适的就返回空的 matches 数组**，\n   不要为了凑数硬选。\n3. `score` 是 0–100 的整数，按下面分档走，不要给没有依据的分数：\n   - **90–100**：非常契合。技能正好补上发起人的缺口，且时间投入、校区都对得上。\n   - **75–89**：比较契合。能补上关键能力，但在投入度、方向或经历上有小落差。\n   - **60–74**：一般。能力沾边但不突出，或关键信息缺失。\n   - **60 以下**：不建议组队。\n4. **每个候选人要给两个理由，视角必须不同 —— 不要写成一个再复制**：\n\n   - **`reason`：对「发起人」说话。** 「你」= 发起人，「TA」= 候选人。\n     例：`你会编程、缺的正是设计，而 TA 做过三届毕业季海报，正好补上这个缺口。`\n\n   - **`invite_reason`：对「被邀请人」说话。** 「你」= 候选人，发起人用**姓名**。\n     例：`谢国辉在找人做数学建模的可视化，而你会 Figma 并做过前端外包，正好接得上。`\n\n   ⚠️ **两段都要能独立读懂。** 把 `reason` 原样抄进 `invite_reason` 是最常见的错误 ——\n   被邀请人看到「你缺的正是设计」会一头雾水（说的不是我啊）。\n   ⚠️ **第三人称不是答案**（\"他具备…，发起人只会…\"）—— 两边读着都别扭。\n\n5. 两个理由都必须**具体**，要说清「谁补上了什么」。**不许**写「很合适」「能力不错」这种空话。\n   好的理由会引用候选人的具体信息（技能、经历、投入度）。\n6. 理由里**只依据给出的信息**，不要脑补候选人的性格、人品、成绩。\n7. 只输出 JSON，不要任何解释，不要用 markdown 代码块包裹。\n\n【输出 JSON 格式】\n{\n  \"matches\": [\n    {\"idx\": 0, \"score\": 92,\n     \"reason\": \"你会编程，缺的正是设计，而 TA 做过三届毕业季海报设计，正好补上这个缺口。\",\n     \"invite_reason\": \"谢国辉在找人做数学建模的图表可视化，而你会 Figma 并做过前端外包，正好接得上。\"}\n  ]\n}\n\nmatches 按 score 从高到低排列，最多 5 条。没有合适的人就输出 {\"matches\": []}。",
+          "SystemPromptConfig": null,
+          "Temperature": 0.05,
+          "TimeoutSeconds": 120,
+          "TopP": 0.9
+        }
+      },
+      "Depends": [
+        {
+          "NodeCode": "db5j46d4shhas0alssai"
+        }
+      ],
+      "ErrorConfig": {
+        "ErrorConfigType": "None"
+      },
+      "ID": "db5iont4shhbpg90ho1h",
+      "Layout": {
+        "X": 1090.0,
+        "Y": 120.0
+      },
+      "Name": "大模型01",
+      "Type": "LLM"
+    },
+    {
+      "Code": "db5j46d4shhas0alssaj",
+      "Configs": {
+        "Code": {
+          "Code": "\"\"\"GeniOS 代码节点：组队匹配 · 第二段「校验 + 防幻觉映射」。\n\n对应设计文档 `docs/module2_team_matching.md` §5.5 的节点 5。\n\n## 这个节点解决的核心问题：**大模型会编造用户**\n\n大模型看到的是 `[0] 大二 · 软件学院 · …` 这样的编号列表。如果让它**直接回传 open_id**，\n它一定会编——它根本不知道真实的 open_id 长什么样。\n\n所以约定：**大模型只回传编号 `idx`，由本节点把 `idx` 映射回真实的 open_id。**\n编出来的编号会越界，直接被这里拦下。这与第一段链路里「依据校验」是同一个思路。\n\n## 另外校验\n\n- `score` 必须在 0–100，且必须有值（没有锚点的分数会飘，见提示词里的分档说明）\n- `reason` 必须非空（需求 5 明确要求「生成推荐匹配理由」）\n- 去重：同一个候选人只保留分数最高的那条\n- 排序 + 截断：按 score 降序取前 top_n，并丢掉低于 min_score 的\n\"\"\"\n\nimport json\n\n# 节点版本号，会被写到 End 的输出里（同上）。\nCODE_VERSION = 202610141\n\n# 一份理由短于这个长度基本就是敷衍，判为无效\nMIN_REASON_LEN = 6\n\n\n# ---------------------------------------------------------------- 输入收集\n\n\ndef _collect(obj, keys, found=None):\n    \"\"\"递归扫描输入结构。连了「大模型节点」和「上一段代码节点」两个上游，\n    平铺还是嵌套都能找到。与 `parse_and_validate.py::_collect` 同一套路。\n    \"\"\"\n    if found is None:\n        found = {}\n    if isinstance(obj, str):\n        s = obj.strip()\n        if s[:1] in \"{[\":\n            try:\n                _collect(json.loads(s), keys, found)\n            except (ValueError, TypeError):\n                pass\n        return found\n    if isinstance(obj, dict):\n        for k, v in obj.items():\n            if k in keys and k not in found:\n                found[k] = v\n            _collect(v, keys, found)\n    elif isinstance(obj, list):\n        for v in obj:\n            _collect(v, keys, found)\n    return found\n\n\ndef _find_matches_payload(blob, found=None):\n    \"\"\"在所有字符串/字典里找那个「像匹配结果」的 JSON（含 matches 键）。\"\"\"\n    if found is None:\n        found = []\n    if isinstance(blob, str):\n        s = blob.strip()\n        if s[:1] in \"{[\":\n            try:\n                data = json.loads(s)\n            except (ValueError, TypeError):\n                data = None\n            if isinstance(data, dict):\n                if \"matches\" in data:\n                    found.append(data)\n                else:\n                    _find_matches_payload(data, found)\n            elif isinstance(data, list):\n                _find_matches_payload(data, found)\n    elif isinstance(blob, dict):\n        if \"matches\" in blob:\n            found.append(blob)\n        for v in blob.values():\n            _find_matches_payload(v, found)\n    elif isinstance(blob, list):\n        for v in blob:\n            _find_matches_payload(v, found)\n    return found\n\n\ndef _to_int(value, default=None):\n    try:\n        return int(round(float(str(value).strip())))\n    except (TypeError, ValueError):\n        return default\n\n\ndef _to_float(value):\n    try:\n        return float(str(value).strip())\n    except (TypeError, ValueError):\n        return None\n\n\ndef _as_str_list(value):\n    if isinstance(value, list):\n        out = []\n        for item in value:\n            if isinstance(item, str) and item.strip():\n                out.append(item.strip())\n        return out\n    if isinstance(value, str) and value.strip():\n        return [value.strip()]\n    return []\n\n\n# ---------------------------------------------------------------- 入口\n\n\ndef handler(inputs):\n    collected = _collect(\n        inputs,\n        (\"candidate_ids\", \"candidate_count\", \"top_n\", \"min_score\", \"match_id\", \"issues\"),\n    )\n\n    candidate_ids = _as_str_list(collected.get(\"candidate_ids\"))\n    match_id = collected.get(\"match_id\") or \"\"\n    top_n = _to_int(collected.get(\"top_n\"), 3) or 3\n    min_score = _to_float(collected.get(\"min_score\"))\n    if min_score is None:\n        min_score = 70.0\n\n    issues = []\n\n    if not candidate_ids:\n        return {\n            \"ok\": False,\n            \"match_id\": match_id,\n            \"matches\": [],\n            \"match_count\": 0,\n            \"issues\": [\"没拿到候选编号表（candidate_ids 为空）——上游代码节点是否已连进来？\"],\n        }\n\n    payloads = _find_matches_payload(inputs)\n    if not payloads:\n        return {\n            \"ok\": False,\n            \"match_id\": match_id,\n            \"matches\": [],\n            \"match_count\": 0,\n            \"issues\": [\"未能从上游输出里找到匹配结果 JSON（含 matches 键）\"],\n        }\n\n    raw_matches = payloads[0].get(\"matches\") or []\n    if not isinstance(raw_matches, list):\n        raw_matches = [raw_matches]\n\n    # 先按 idx 聚合，同一个候选人取最高分\n    best = {}\n    for entry in raw_matches:\n        if not isinstance(entry, dict):\n            issues.append(\"丢弃一条非对象结果：%r\" % (entry,))\n            continue\n\n        idx = _to_int(entry.get(\"idx\"))\n        if idx is None or idx < 0 or idx >= len(candidate_ids):\n            # ★ 防幻觉：越界编号说明大模型编了一个不存在的候选人\n            issues.append(\"丢弃越界编号 idx=%r（候选共 %d 个）\" % (entry.get(\"idx\"), len(candidate_ids)))\n            continue\n\n        open_id = candidate_ids[idx]\n        if not open_id:\n            issues.append(\"丢弃 idx=%d：该候选没有 open_id\" % idx)\n            continue\n\n        score = _to_float(entry.get(\"score\"))\n        if score is None:\n            issues.append(\"丢弃 idx=%d：score 缺失或非数字\" % idx)\n            continue\n        if score < 0 or score > 100:\n            issues.append(\"丢弃 idx=%d：score=%s 超出 0-100\" % (idx, score))\n            continue\n\n        reason = entry.get(\"reason\")\n        reason = reason.strip() if isinstance(reason, str) else \"\"\n        if len(reason) < MIN_REASON_LEN:\n            issues.append(\"丢弃 idx=%d：理由为空或过短\" % idx)\n            continue\n\n        # 给**被邀请人**看的那份理由（视角不同：这里的「你」指候选人）。\n        # 缺了不至于丢掉整条匹配 —— 退回用 reason，总比让对方的卡片上没理由强。\n        invite_reason = entry.get(\"invite_reason\")\n        invite_reason = invite_reason.strip() if isinstance(invite_reason, str) else \"\"\n        if len(invite_reason) < MIN_REASON_LEN:\n            issues.append(\"idx=%d 没有独立的 invite_reason（会用 reason 顶替）\" % idx)\n            invite_reason = reason\n        elif invite_reason == reason:\n            issues.append(\"idx=%d 的 invite_reason 和 reason 一模一样（模型没换视角）\" % idx)\n\n        previous = best.get(open_id)\n        if previous is None or score > previous[\"score\"]:\n            best[open_id] = {\n                \"open_id\": open_id, \"idx\": idx, \"score\": score,\n                \"reason\": reason, \"invite_reason\": invite_reason,\n            }\n\n    matched = sorted(best.values(), key=lambda m: m[\"score\"], reverse=True)\n    above = [m for m in matched if m[\"score\"] >= min_score]\n    trimmed = above[:top_n] if top_n > 0 else above\n\n    if matched and not above:\n        issues.append(\"有 %d 个候选但分数都低于 %g，未推荐\" % (len(matched), min_score))\n    if len(above) > len(trimmed):\n        issues.append(\"分数达标的 %d 个里只取前 %d 个\" % (len(above), len(trimmed)))\n    if not payloads[0].get(\"matches\"):\n        issues.append(\"大模型认为没有合适的队友\")\n\n    return {\n        \"ok\": bool(trimmed),\n        \"code_version\": CODE_VERSION,\n        \"match_id\": match_id,\n        \"matches\": trimmed,\n        \"match_count\": len(trimmed),\n        \"candidate_count\": len(candidate_ids),\n        \"min_score\": min_score,\n        \"top_n\": top_n,\n        \"issues\": issues,\n    }\n",
+          "InputVariables": [
+            {
+              "Name": "candidate_ids",
+              "NodeCode": "db5j46d4shhas0alssai",
+              "Path": "candidate_ids",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "candidate_count",
+              "NodeCode": "db5j46d4shhas0alssai",
+              "Path": "candidate_count",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "match_id",
+              "NodeCode": "db5j46d4shhas0alssai",
+              "Path": "match_id",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "top_n",
+              "NodeCode": "db5j46d4shhas0alssai",
+              "Path": "top_n",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "min_score",
+              "NodeCode": "db5j46d4shhas0alssai",
+              "Path": "min_score",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "raw_output",
+              "NodeCode": "db5iont4shhbpg90ho1h",
+              "Path": "raw_output",
+              "RefType": "node_field"
+            }
+          ],
+          "Language": 1,
+          "OutputSchema": [
+            {
+              "Name": "ok",
+              "Type": 2
+            },
+            {
+              "Name": "code_version",
+              "Type": 1
+            },
+            {
+              "Name": "match_id",
+              "Type": 0
+            },
+            {
+              "Name": "matches",
+              "SubParameters": [
+                {
+                  "Name": "open_id",
+                  "Type": 0
+                },
+                {
+                  "Name": "idx",
+                  "Type": 1
+                },
+                {
+                  "Name": "score",
+                  "Type": 3
+                },
+                {
+                  "Name": "reason",
+                  "Type": 0
+                },
+                {
+                  "Name": "invite_reason",
+                  "Type": 0
+                }
+              ],
+              "Type": 9
+            },
+            {
+              "Name": "match_count",
+              "Type": 1
+            },
+            {
+              "Name": "candidate_count",
+              "Type": 1
+            },
+            {
+              "Name": "min_score",
+              "Type": 3
+            },
+            {
+              "Name": "top_n",
+              "Type": 1
+            },
+            {
+              "Name": "issues",
+              "Type": 5
+            }
+          ],
+          "Retries": 0,
+          "TimeoutSeconds": 120
+        }
+      },
+      "Depends": [
+        {
+          "NodeCode": "db5iont4shhbpg90ho1h"
+        },
+        {
+          "NodeCode": "db5j46d4shhas0alssai"
+        }
+      ],
+      "ErrorConfig": {
+        "ErrorConfigType": "None"
+      },
+      "ID": "db5j46d4shhas0alssaj",
+      "Layout": {
+        "X": 1420.0,
+        "Y": 120.0
+      },
+      "Name": "代码02",
+      "Type": "Code"
+    },
+    {
+      "Code": "db5j46d4shhas0alssak",
+      "Configs": {
+        "Code": {
+          "Code": "\"\"\"GeniOS 代码节点：组队匹配 · 第三段「组装写回多维表格的入参」。\n\n## 它接在哪\n\n    … → 代码02(校验) ──▶ 代码03(本节点) ──▶ 插件 update_records ──▶ End\n\n## 为什么需要它\n\n代码02 产出的是 `matches` **数组**：\n    [{\"open_id\": \"ou_a\", \"idx\": 0, \"score\": 92, \"reason\": \"…\"}, …]\n\n而 `update_records` 要的是**一条记录的字段对象**：\n    {\"推荐队友1\": [{\"id\": \"ou_a\"}], \"匹配理由\": \"…\", \"状态\": \"已匹配\"}\n\n**数组 → 记录对象** 这一层变形，就是本节点的全部工作。\n\n## ⚠️ v1 接口的字段值写法（实测，和 v3 不一样）\n\n| 字段类型 | 写法 |\n| --- | --- |\n| **单选** | **字符串**（`\"已匹配\"`）—— 用数组会被拒：`the value of 'Single Option' must be a string` |\n| 多选 | 字符串数组 |\n| 人员 | `[{\"id\": \"ou_…\"}]` |\n| 文本 | 字符串 |\n\n依据：`docs/findings.md` S7 实测记录。\n\"\"\"\n\nimport json\n\nCODE_VERSION = 202610141\n\n# 最多写回几个推荐队友 —— 和表里的「推荐队友1/2/3」三个字段对应\nMAX_TEAMMATES = 3\n\n# 没有匹配到人时把状态置成这个（否则 gateway 会一直重试同一行）\nNO_MATCH_STATUS = \"已结束\"\n\n\ndef _collect(obj, keys, found=None):\n    \"\"\"递归扫描输入结构，和另外两个代码节点同一套路。\"\"\"\n    if found is None:\n        found = {}\n    if isinstance(obj, str):\n        s = obj.strip()\n        if s[:1] in \"{[\":\n            try:\n                _collect(json.loads(s), keys, found)\n            except (ValueError, TypeError):\n                pass\n        return found\n    if isinstance(obj, dict):\n        for k, v in obj.items():\n            if k in keys and k not in found:\n                found[k] = v\n            _collect(v, keys, found)\n    elif isinstance(obj, list):\n        for v in obj:\n            _collect(v, keys, found)\n    return found\n\n\ndef _as_list(value):\n    if isinstance(value, list):\n        return value\n    if isinstance(value, str):\n        s = value.strip()\n        if s[:1] == \"[\":\n            try:\n                data = json.loads(s)\n            except (ValueError, TypeError):\n                data = None\n            if isinstance(data, list):\n                return data\n        return [value] if s else []\n    if value in (None, \"\"):\n        return []\n    return [value]\n\n\ndef _flatten_text(value):\n    \"\"\"把飞书返回的字段值压成字符串（富文本分段 / 多选数组 / 人员对象都吃）。\"\"\"\n    if value is None:\n        return \"\"\n    if isinstance(value, str):\n        return value.strip()\n    if isinstance(value, dict):\n        for key in (\"text\", \"name\", \"id\"):\n            inner = value.get(key)\n            if isinstance(inner, str) and inner.strip():\n                return inner.strip()\n        return \"\"\n    if isinstance(value, list):\n        parts = []\n        for item in value:\n            text = _flatten_text(item)\n            if text and text not in parts:\n                parts.append(text)\n        return \"、\".join(parts)\n    return str(value).strip()\n\n\ndef _safe_int(value, default=0):\n    try:\n        return int(round(float(str(value).strip())))\n    except (TypeError, ValueError):\n        return default\n\n\ndef handler(inputs):\n    collected = _collect(\n        inputs,\n        (\"matches\", \"match_id\", \"record_id\", \"request_record_id\", \"code_version\"),\n    )\n\n    matches = [m for m in _as_list(collected.get(\"matches\")) if isinstance(m, dict)]\n    match_id = collected.get(\"match_id\") or \"\"\n\n    # 需求行的 record_id 可能来自 Start，也可能来自上游代码节点\n    record_id = \"\"\n    for value in (collected.get(\"request_record_id\"), collected.get(\"record_id\")):\n        text = _flatten_text(value)\n        if text.startswith(\"rec\"):\n            record_id = text\n            break\n\n    issues = []\n    if not record_id:\n        issues.append(\n            \"没拿到需求行的 record_id —— Start 有没有加 request_record_id 参数？\"\n            \"（没有它就没有要更新的目标行）\"\n        )\n\n    # 按分数降序（代码02 已经排过，这里再稳一次），最多取前 3 个\n    ordered = sorted(matches, key=lambda m: -_safe_int(m.get(\"score\")))[:MAX_TEAMMATES]\n\n    fields = {}\n    reason_lines = []\n    invite_lines = []\n    for index, match in enumerate(ordered):\n        open_id = _flatten_text(match.get(\"open_id\"))\n        if not open_id:\n            continue\n        # 人员字段：v1 要 [{\"id\": \"ou_...\"}]\n        fields[\"推荐队友%d\" % (index + 1)] = [{\"id\": open_id}]\n        score = _safe_int(match.get(\"score\"))\n        reason_lines.append(\n            \"%d. %s（%s 分）\" % (index + 1, _flatten_text(match.get(\"reason\")), score)\n        )\n        # **给被邀请人看的那一份**，视角不同（「你」指候选人）。\n        # 缺了就退回用 reason —— 总比对方卡片上没理由强。\n        invite_lines.append(\n            \"%d. %s（%s 分）\"\n            % (index + 1, _flatten_text(match.get(\"invite_reason\")) or _flatten_text(match.get(\"reason\")), score)\n        )\n\n    if reason_lines:\n        fields[\"匹配理由\"] = \"\\n\".join(reason_lines)\n        fields[\"邀请理由\"] = \"\\n\".join(invite_lines)\n        # ⚠️ 单选字段在 v1 里必须是**字符串**，不能是数组\n        fields[\"状态\"] = \"已匹配\"\n        recommendation = True\n    else:\n        # 一个都没匹配到：把状态收敛掉，否则 gateway 会一直重试同一行。\n        # 这是产品取舍 —— 也可以改成保持「待匹配」，等有新的人注册再重试。\n        fields[\"匹配理由\"] = \"本次未找到合适的队友，可重新发起。\"\n        fields[\"状态\"] = NO_MATCH_STATUS\n        recommendation = False\n        issues.append(\"没有匹配到人，把状态置为「%s」\" % NO_MATCH_STATUS)\n\n    payload = {}\n    if record_id:\n        payload = {\"record_id\": record_id, \"fields_json\": json.dumps(fields, ensure_ascii=False)}\n\n    return {\n        \"ok\": bool(record_id) and bool(fields),\n        \"code_version\": CODE_VERSION,\n        \"match_id\": match_id,\n        \"will_update\": bool(record_id),\n        \"record_id\": record_id,\n        # 给插件 update_records 用：fields_json 是**字符串**（参数名带 json）\n        \"fields_json\": payload.get(\"fields_json\", \"\"),\n        # 同时给一份对象形态，万一插件那个参数其实吃对象、不吃字符串\n        \"fields_object\": fields,\n        \"recommended_count\": len(ordered) if recommendation else 0,\n        # 透传下去，这样 End 只依赖本节点一个上游，接线更简单\n        \"matches\": ordered,\n        \"match_count\": len(ordered),\n        \"issues\": issues,\n    }\n",
+          "InputVariables": [
+            {
+              "Name": "matches",
+              "NodeCode": "db5j46d4shhas0alssaj",
+              "Path": "matches",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "match_id",
+              "NodeCode": "db5j46d4shhas0alssaj",
+              "Path": "match_id",
+              "RefType": "node_field"
+            },
+            {
+              "Name": "request_record_id",
+              "NodeCode": "db5igk54shhas0als382",
+              "Path": "request_record_id",
+              "RefType": "node_field"
+            }
+          ],
+          "Language": 1,
+          "OutputSchema": [
+            {
+              "Name": "ok",
+              "Type": 2
+            },
+            {
+              "Name": "code_version",
+              "Type": 1
+            },
+            {
+              "Name": "match_id",
+              "Type": 0
+            },
+            {
+              "Name": "will_update",
+              "Type": 2
+            },
+            {
+              "Name": "record_id",
+              "Type": 0
+            },
+            {
+              "Name": "fields_json",
+              "Type": 0
+            },
+            {
+              "Name": "recommended_count",
+              "Type": 1
+            },
+            {
+              "Name": "matches",
+              "SubParameters": [
+                {
+                  "Name": "open_id",
+                  "Type": 0
+                },
+                {
+                  "Name": "idx",
+                  "Type": 1
+                },
+                {
+                  "Name": "score",
+                  "Type": 3
+                },
+                {
+                  "Name": "reason",
+                  "Type": 0
+                },
+                {
+                  "Name": "invite_reason",
+                  "Type": 0
+                }
+              ],
+              "Type": 9
+            },
+            {
+              "Name": "match_count",
+              "Type": 1
+            },
+            {
+              "Name": "issues",
+              "Type": 5
+            }
+          ],
+          "Retries": 0,
+          "TimeoutSeconds": 120
+        }
+      },
+      "Depends": [
+        {
+          "NodeCode": "db5j46d4shhas0alssaj"
+        },
+        {
+          "NodeCode": "db5igk54shhas0als382"
+        }
+      ],
+      "ErrorConfig": {
+        "ErrorConfigType": "None"
+      },
+      "ID": "db5j46d4shhas0alssak",
+      "Layout": {
+        "X": 1740.0,
+        "Y": 120.0
+      },
+      "Name": "代码03",
+      "Type": "Code"
+    }
+  ],
+  "UniqueName": "db5igk54shhas0als37h",
+  "UpdatedAt": "1970-01-01T00:00:00Z",
+  "VersionCode": "-",
+  "VersionName": "-"
+}

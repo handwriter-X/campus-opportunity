@@ -28,11 +28,14 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from .bitable import BitableClient, BitableError, opportunity_row
+from .card_kit import build_opportunity_cards
 from .config import Settings
 from .feishu_app import FeishuAppClient, FeishuAppError
 from .genios_client import GeniosClient, GeniosNotConfigured
 from .models import Article
 from .push import Alerter
+from .qr_extract import enrich_payload
 from .store import (
     claim_articles,
     mark_dispatched,
@@ -208,12 +211,16 @@ class ArticleWorker:
         client: GeniosClient,
         alerter: Alerter,
         feishu_app: FeishuAppClient | None = None,
+        bitable: BitableClient | None = None,
     ) -> None:
         self.settings = settings
         self.session_factory = session_factory
         self.client = client
         self.alerter = alerter
         self.feishu_app = feishu_app
+        # 机会数据的**唯一去向**（决策 D9：不再进 SQLite）。
+        # 没配 bitable 时退回写本地库，保证没凭据也能把链路跑通。
+        self.bitable = bitable
         self._stop = asyncio.Event()
         # 后台推送任务。持着引用，否则 asyncio 可能在跑完前把它回收掉。
         self._pending: set[asyncio.Task[None]] = set()
@@ -289,6 +296,8 @@ class ArticleWorker:
                     snapshot = (
                         article.source, article.title, article.url,
                         article.article_id, article.mode, iso_shanghai(article.publish_time),
+                        # 正文 HTML —— 用来从图片里解报名二维码（`qr_extract`）
+                        article.raw_payload,
                     )
                 else:
                     snapshot = None
@@ -300,23 +309,79 @@ class ArticleWorker:
 
         self._record_failure(article_id, result.error or "未知错误", retryable=True)
 
-    def _store_opportunities(
+    async def _store_opportunities(
         self, article_id: int, payload: dict[str, Any],
         source: str | None, url: str | None, article_uid: str | None,
         publish_time: str | None = None,
     ) -> list[dict[str, Any]]:
-        """把抽取出的机会写进数据库。**同步执行** —— 本地操作很快，且数据不能丢。
+        """把抽取出的机会写进**【机会汇总】表**。
 
-        原来这一步是设计成「GeniOS 工作流用 HTTP 节点回写 `/opportunities`」的。
-        改成在这里落库的理由：那个 HTTP 节点要传的 JSON，我们**本来就已经从轮询里拿到了**，
-        多绕一圈只是多一个「必须能被 GeniOS 反向访问到」的硬要求（在飞连环境下很贵）。
-        判断/抽取/校验仍然全在 GeniOS 内完成，gateway 只负责搬运。
+        ## 为什么写表而不是 SQLite（决策 D9）
+
+        业务数据一律进多维表格 —— 这样模块一产出的机会，**对话智能体才看得到**
+        （它读机会只能走插件节点，HTTP 节点要公网，我们在内网打不通）。
+
+        ## 为什么不做去重
+
+        **demo 阶段刻意不做**。表格没有 UNIQUE 约束，去重要"查了再写"，
+        并发下还会漏。先**把通路打通**，去重留到后面 —— 代价是同一活动被两个号转发时
+        会出现两行。**这条要记在文档里**，别让人以为忘了。
+
+        没配 bitable 时**退回写本地库** —— 保证没凭据也能把链路跑通。
         """
+        items = [i for i in (payload.get("items") or []) if isinstance(i, dict)]
+        if not items:
+            return []
+
+        if self.bitable is None or not self.bitable.configured:
+            logger.warning("没配多维表格，机会仍写本地库（D9 的最终形态是只写表）")
+            return self._store_opportunities_local(
+                article_id, payload, source, url, article_uid, publish_time
+            )
+
+        def _row(item: dict[str, Any]) -> dict[str, Any]:
+            data = to_opportunity_data(item, source=source, url=url, article_id=article_uid)
+            # ⚠️ `status` **从来没人算过** —— 以前 SQLite 那边是模型默认值 `可参与`。
+            # 这里补上同样的默认，保持和迁移前一致（别让表里这一格是空的）。
+            # 想筛"还能报名的"，**按 `报名截止` 比时间更准** —— 那个才是真信息。
+            data.setdefault("status", "可参与")
+            return opportunity_row(data)
+
+        rows = [_row(item) for item in items]
+        rows = [r for r in rows if r.get("机会名称")]
+        if not rows:
+            return []
+
+        try:
+            created = await self.bitable.create_records(
+                self.settings.bitable_opportunity_table_id, rows
+            )
+        except BitableError as exc:
+            # ⚠️ **必须显式记日志**：v1 的写表接口**用 HTTP 200 返回业务错误**，
+            # 不主动检查的话，失败会静默过去（实测踩过）。
+            logger.error("写【机会汇总】表失败（文章 #%s）：%s", article_id, exc)
+            return []
+        stored = []
+        for row, record_id in zip(rows, created):
+            stored.append({
+                "name": row.get("机会名称"),
+                "record_id": record_id,
+                # demo 阶段不做去重，所以新写进去的都当"新建"
+                "duplicate": False,
+                "low_confidence": bool(row.get("低置信")),
+                "status": (row.get("状态") or [""])[0] if isinstance(row.get("状态"), list) else "",
+            })
+            logger.info("入库（表）：文章 #%s「%s」→ 新建", article_id, row.get("机会名称"))
+        return stored
+
+    def _store_opportunities_local(
+        self, article_id: int, payload: dict[str, Any],
+        source: str | None, url: str | None, article_uid: str | None,
+        publish_time: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """没配多维表格时的退路：写本地库。逻辑与改造前一致。"""
         items = payload.get("items") or []
         stored: list[dict[str, Any]] = []
-        if not items:
-            return stored
-
         with self.session_factory() as session:
             for index, item in enumerate(items):
                 if not isinstance(item, dict):
@@ -330,18 +395,12 @@ class ArticleWorker:
                     logger.warning("文章 #%s 第 %s 条机会入库失败：%s", article_id, index + 1, exc)
                     continue
                 session.commit()
-                record = {
+                stored.append({
                     "name": outcome.opportunity.name,
                     "duplicate": outcome.duplicate,
                     "low_confidence": outcome.opportunity.low_confidence,
                     "status": outcome.opportunity.status,
-                }
-                stored.append(record)
-                logger.info(
-                    "入库：文章 #%s 第 %s 条「%s」→ %s",
-                    article_id, index + 1, record["name"],
-                    "已存在（合并来源）" if outcome.duplicate else "新建",
-                )
+                })
         return stored
 
     async def _deliver(self, article_id: int, snapshot: tuple, result: Any) -> None:
@@ -357,9 +416,16 @@ class ArticleWorker:
             logger.warning("文章 #%s：GeniOS 已执行，但返回值里没有可识别的抽取结果", article_id)
             return
 
-        source, title, url, article_uid, mode, publish_time = snapshot
+        source, title, url, article_uid, mode, publish_time, raw_payload = snapshot
 
-        stored = self._store_opportunities(
+        # —— 报名二维码 ——
+        # 公众号经常只放一张二维码，没有可点的链接。这里从正文图片里**解**出链接
+        # （`qr_extract` / findings Q20）。**必须放在入库之前**，表里才会有链接。
+        # 解不出来就什么都不做 —— 绝不能因为它阻断整篇文章。
+        if await enrich_payload(payload, raw_payload):
+            logger.info("文章 #%s：从正文二维码里补出了报名入口", article_id)
+
+        stored = await self._store_opportunities(
             article_id, payload, source, url, article_uid, publish_time
         )
 
@@ -378,15 +444,32 @@ class ArticleWorker:
             logger.warning("开了推送但没配 FEISHU_APP_ID / FEISHU_APP_SECRET，跳过")
             return
 
-        text = format_notification(source, title, url, payload, result.response, stored)
-        task = asyncio.create_task(self._push(article_id, text))
+        # 有结构化结果就发**卡片**（标题是机会名、能点按钮）；否则退回纯文本。
+        # ⚠️ **一条机会一张卡** —— 一篇文章抽出两条时，两张卡的标题各自是活动名，
+        # 比一张卡里堆两个"小标题"清楚得多。
+        cards = build_opportunity_cards(payload, source=source, url=url, stored=stored)
+        task = asyncio.create_task(
+            self._push(article_id, cards=cards) if cards
+            else self._push(article_id, text=format_notification(
+                source, title, url, payload, result.response, stored))
+        )
         self._pending.add(task)
         task.add_done_callback(self._pending.discard)
 
-    async def _push(self, article_id: int, text: str) -> None:
+    async def _push(
+        self, article_id: int, *, text: str | None = None,
+        cards: list[dict[str, Any]] | None = None,
+    ) -> None:
         try:
-            await self.feishu_app.send_text(text)
-            logger.info("已推送到飞书：文章 #%s", article_id)
+            if cards:
+                for item in cards:
+                    await self.feishu_app.send_card(item)
+            else:
+                await self.feishu_app.send_text(text or "")
+            logger.info(
+                "已推送到飞书：文章 #%s（%s）", article_id,
+                f"{len(cards)} 张卡片" if cards else "文本",
+            )
         except FeishuAppError as exc:
             # 推送失败不改文章状态 —— 数据已经落库了，重试整篇反而会重复派发
             logger.warning("飞书推送失败（文章 #%s）：%s", article_id, exc)

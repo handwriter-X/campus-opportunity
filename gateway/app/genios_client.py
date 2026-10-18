@@ -151,6 +151,11 @@ class GeniosClient:
             # 有异步任务 ID 且配了查询路径 → 轮询到出结果（S1 确认后再启用）
             polled = await self._poll(task_id)
             if polled is not None:
+                problem = _problem_of(polled)
+                if problem:
+                    return DispatchResult(
+                        ok=False, task_id=task_id, response=polled, error=problem
+                    )
                 return DispatchResult(ok=True, task_id=task_id, response=polled)
 
         return DispatchResult(ok=True, task_id=task_id, response=parsed)
@@ -233,7 +238,34 @@ def _dig(data: Any, path: str) -> Any:
 
 _TERMINAL_STATES = (
     "succeeded", "success", "finished", "completed", "done", "failed", "error",
+    # ⚠️ `interrupted` 必须算终态。实测（docs/findings.md S8）：多维表格插件的
+    # OAuth 授权过期时，工作流会停在 `interrupted` 并给出重新授权链接。
+    # 不认它的话轮询会一直空转到超时，然后**把失败当成功**返回。
+    "interrupted",
 )
+
+# 终态里这些是「没成功」
+_FAILED_STATES = ("failed", "error", "interrupted", "canceled", "cancelled")
+
+
+def _problem_of(data: Any) -> str | None:
+    """终态但没成功 → 返回一句能直接看懂的说明（**带上平台给的 `msg`**）。
+
+    平台的 `msg` 里通常含可操作的链接（比如「请点击[这里]进行授权」），
+    直接吞掉的话排障就要靠猜。
+    """
+    if not isinstance(data, dict):
+        return None
+    status = ""
+    for key in ("status", "state", "task_status", "run_status"):
+        if isinstance(data.get(key), str):
+            status = data[key].lower()
+            break
+    if not status or status not in _FAILED_STATES:
+        return None
+    msg = data.get("msg") or data.get("message") or ""
+    tail = f"：{str(msg)[:300]}" if msg else ""
+    return f"工作流未成功（status={status}）{tail}"
 
 
 def _looks_finished(data: Any) -> bool:

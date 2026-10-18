@@ -10,6 +10,11 @@ tenacity>=8.5
 python-dateutil>=2.9
 tzdata>=2024.1
 
+# 从公众号正文图片里解报名二维码（见 app/qr_extract.py、docs/findings.md Q20）。
+# zxing-cpp 是纯 wheel，不需要系统库；没装时代码会自动跳过识别，不会崩。
+zxing-cpp>=2.2
+pillow>=10.0
+
 # dev / test
 pytest>=8.3
 pytest-asyncio>=0.24

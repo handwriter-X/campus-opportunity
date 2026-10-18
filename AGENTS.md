@@ -1,186 +1,379 @@
 # AGENTS.md
 
-给接手这个仓库的 AI agent 看的。人请读 [`HANDOVER.md`](HANDOVER.md)。
-
-## Agent skills
-
-### Issue tracker
-
-Issues and specs use local Markdown files under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-Triage uses the default labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix`. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-This is a single-context repo. See `docs/agents/domain.md`.
+**给接手这个仓库的 AI agent 看的。** 人请读 [`HANDOVER.md`](HANDOVER.md)。
 
 ---
 
-## 这个项目是什么
+## 0. 先读这些（按这个顺序）
+
+| 顺序 | 文件 | 为什么 |
+| --- | --- | --- |
+| 1 | **本文件** | 全局地图、铁律、陷阱 |
+| 2 | **`docs/findings.md`** | **实测账本** —— 每个技术结论的**证据**（真实响应、报错原文）。**几十条，改代码前先搜关键词** |
+| 3 | `docs/module2_team_matching.md` | 模块二的设计（表结构、匹配算法、工作流节点图） |
+| 4 | `PLAN.md` | 原始需求与施工方案（**权威**，但 §4 的 ❓ 大多已被 findings 关闭） |
+| 5 | `HANDOVER.md` | 给人的移交说明（含凭据清单、验收检查点） |
+
+**`docs/findings.md` 是这个项目的工作纪律所在。** 每个结论都写了"做了什么 / 看到什么 / 结论 / 证据"。
+
+---
+
+## 1. 这个项目是什么
 
 南开大学校园机会发现智能体，参赛作品，**必须基于南开 GeniOS 平台**（底层是火山引擎 HiAgent）。
 
-闭环：`公众号文章 → We-MP-RSS 采集 → campus-gateway 搬运 → GeniOS 判断+抽取 → 回传入库 → 推飞书`
+**现在有两个模块，第三个在规划中：**
+
+### 模块一 · 机会发现（✅ 已交付验证）
+
+```
+公众号文章 → We-MP-RSS 采集 → gateway(搬运) → GeniOS 抽取工作流 → 落库 → 推飞书
+```
+
+### 模块二 · 组队匹配（✅ 端到端跑通）
+
+```
+学生在多维表格填画像/发需求（状态驱动）
+   → gateway 轮询【组队需求】 → GeniOS 匹配工作流（读画像表 → 硬筛 → 大模型精排 + 生成两个视角的理由 → 写回需求行）
+   → gateway 推卡片 A（候选人 + 「邀请 TA」按钮）
+   → 学生点「邀请」→ 卡片回调 → 写【邀请】表 + 推卡片 B 给对方
+   → 对方点「接受」→ 卡片回调 → 通知发起人
+```
+
+### 模块三 · 对话（🔄 进行中，只有通道层）
+
+```
+学生给飞书 bot 发消息 → 长连接 → gateway 对话路由 → GeniOS「对话流型」智能体 → 回复
+```
+
+**⚠️ 架构上的关键约束：零 inbound。** 服务跑在校内网、被飞连零信任网关挡着，
+**公网打不进来**。所以一切交互都靠两条**我们主动连出去**的通道：
+
+1. **调 GeniOS 的 API**（`/api/proxy/**` 是飞连豁免路径，实测能通）
+2. **飞书自建应用的长连接**（WebSocket，不需要公网地址）
+
+**任何"让外部 POST 到我们"的设计都不成立。**
 
 ---
 
-## ⚠️ 第一件要知道的事：这个仓库里没有凭据
+## 2. ⚠️ 第二件要知道的事：这个仓库里没有凭据，也没有平台上的东西
 
-**光 clone 下来是跑不通端到端的。** 缺的东西是刻意不放进来的：
+**光 clone 下来跑不通端到端。** 缺的东西是**刻意不放进来的**：
 
 | 缺什么 | 谁提供 |
 | --- | --- |
-| `.env` 的内容（GeniOS/飞书密钥、共享密钥） | 人 — 私下交接，不在仓库里 |
-| **GeniOS 上的工作流本身** | 人 — 活在平台上，仓库里只有提示词和搭建说明（`docs/genios_workflow_spec.md`） |
-| 飞书自建应用 | 人 — 要在开放平台建并发布 |
+| `.env` 的内容 | 人 — 私下交接 |
+| **GeniOS 上的三个智能体/工作流本身** | 人 — 活在平台上，仓库里只有提示词、代码节点和生成器 |
+| 飞书自建应用 | 人 — 要在开放平台建；**还要开多维表格权限 + 设为表格协作者** |
 | 微信号（公众号后台 + 微信读书两次扫码） | 人 — We-MP-RSS 采集的前提 |
+| 飞书多维表格 | 人 — 四张表（见 §5） |
 
-**所以：如果用户说「跑不起来 / 收不到消息」，先确认这几样齐不齐，再怀疑代码。**
-完整的移交清单和验收检查点见 `HANDOVER.md` 第五节。
+**所以：用户说「跑不起来 / 收不到消息」时，先确认这几样齐不齐，再怀疑代码。**
 
 ---
 
-## 铁律（违反即返工）
+## 3. 铁律（违反即返工）
 
-1. **判断/抽取/校验等智能逻辑必须留在 GeniOS 内。**
-   `gateway/` 里**不许**出现"这是不是机会""要不要推送"这类判断。
-   `store.py` 刻意保持"薄"，别往里加业务智能。这条来自赛制，不是偏好。
+1. **判断 / 抽取 / 校验 / 匹配等智能逻辑必须留在 GeniOS 内。**
+   `gateway/` 里**不许**出现"这是不是机会""这个人合不合适""要不要推送"这类判断。
+   gateway 只做**搬运 + 状态机 + 通知**。**这条来自赛制，不是偏好。**
 
-2. **遇到 ❓ 不许猜。** 方案里标 ❓ 的都是没有公开资料、必须靠实验或问用户的。
-   先做探针 → 把**实测结果**（做了什么/看到什么/结论/证据）写进 `docs/findings.md` → 再继续。
+2. **遇到 ❓ 不许猜。**
+   没有公开资料的东西，先做探针 → 把**实测结果**写进 `docs/findings.md` → 再继续。
    **不要凭合理推测写死一个值然后往下走。**
+   > 这条在本项目里**反复被验证有效** —— 好几个关键的 API 形状都是"让平台的报错自己告诉我们"的。
 
 3. **密钥只放 `.env`。** 不进代码、不进日志、不进 `docs/`、不进提交。
-   明文密钥出现在任何被提交的文件里 = 严重事故。
+   提交前扫一遍（`docs/findings.md` 里有扫描方法）。
 
-4. **不要自行扩大范围。** 阶段 1 不做：组队匹配、用户画像、个性化推荐、隐私处理、飞书自建应用。
+4. **改行为前先读 `docs/findings.md`。**
+   里面记着**用户拍板的决策**（D1–D9 等），它们是深思熟虑的取舍，**不是 bug**。要改先问用户。
 
-5. **改行为前先读 `docs/findings.md`。** 里面记着 8 条替用户做过的判断（D1–D8），
-   它们是深思熟虑的取舍，**不是 bug**。要改先问用户。
+5. **不要自己写脚本改代码。**
+   本项目踩过：用 `python -c "s.replace(...)"` 改代码，**字符串没匹配上，脚本却打印了"已修"**，
+   导致两轮调试全白费。**用会报错的编辑工具，改完 `grep` 验证。**
 
 ---
 
-## 事实层级（冲突时按这个顺序信）
+## 4. 事实层级（冲突时按这个顺序信）
 
 | 优先级 | 文件 | 是什么 |
 | --- | --- | --- |
-| 1 | `docs/findings.md` | **实测账本**。每个技术结论的证据（真实响应、报错原文） |
+| 1 | `docs/findings.md` | **实测账本**。每个结论的证据 |
 | 2 | 代码本身 | 行为的事实 |
-| 3 | `PLAN.md` | 原始需求与施工方案（**权威，但 §4 的许多 ❓ 已被 findings 关闭**） |
+| 3 | `PLAN.md` | 原始需求与方案 |
 | 4 | `README.md` / `HANDOVER.md` | 概览，可能滞后 |
-
-`docs/findings.md` 是**持续更新的**。改代码前先在里面搜关键词，很可能有人已经踩过。
 
 ---
 
-## 命令
+## 5. 架构与数据通路
+
+### 数据存哪：**飞书多维表格是业务数据的事实源**（决策 D9）
+
+```
+        ┌────────────────────────────────────────────────┐
+        │           飞书多维表格（唯一事实源）             │
+        │  机会汇总 · 队友画像 · 组队需求 · 邀请           │
+        └────────────────────────────────────────────────┘
+             ▲ 读写                          ▲ 表单 / 按钮
+             │                                │
+   ┌─────────┴──────────┐              学生（飞书）
+   │                    │
+GeniOS 工作流        gateway 常驻服务
+（智能层）           （机制层 + 通知层）
+   │                    │
+   ├─ 抽取工作流 ←──────┤ 模块一：/ingest → worker → 派发
+   ├─ 匹配工作流 ←──────┤ 模块二：轮询【组队需求】→ 派发 → 推卡片
+   └─ 对话流型  ←───────┘ 模块三：长连接收消息 → 转发 → 回复
+```
+
+**机会汇总表已建好并成为唯一去向**（`worker._store_opportunities` 直接写表）。
+SQLite 只剩**流水线状态**（文章、待办、会话 id），不再存业务数据。
+
+### 两条通道（都由我们主动连出去）
+
+| 通道 | 干什么 | 已验证 |
+| --- | --- | --- |
+| GeniOS API | 派发工作流 + 轮询结果 | ✅ |
+| 飞书长连接 | **收卡片回调** + **收消息** | ✅ |
+
+> ⚠️ **飞书一个应用只允许一条长连接** —— 所以收卡片回调和收消息**必须在同一个进程里**。
+> 这是"服务合并"的硬理由。
+
+### 5.x 小程序 vs 机器人：**权能边界**（改功能前先看这条）
+
+现在有两个面向用户的入口：**飞书机器人**和**飞书小程序**（`mini/` + `bff/`）。
+判据只有一句：
+
+> **谁"主动发起"，谁负责推进到底；另一方只负责回应。**
+>
+> **机器人 = 推** · **小程序 = 拉** · **多维表格 = 事实源**
+
+| 能力 | 主场 |
+| --- | --- |
+| 机会推送 / 匹配结果 / 邀请决策 / 系统告警 | 🤖 机器人 |
+| 浏览、搜索、筛选、录入、改画像 | 📱 小程序 |
+| **申请加入** | 📱 发起 → 🤖 决策 |
+
+**三条规则：**
+1. **一个操作只有一个入口**（否则状态会打架）。
+2. **机器人不做"浏览"**（最多 3–5 张卡，不做分页/筛选）。
+3. **小程序不做"通知"**（它拿不到后台事件）。
+
+> **这条边界已经落进数据**：`邀请.来源` = `匹配邀请` / `小程序申请`。
+> 同一张表装两种方向，**回调时以它为准**决定"谁该按按钮、通知谁"。
+> 写错方向 = 用户点了没反应，是最难查的一类 bug。
+
+详见 `docs/module2_team_matching.md` §4.1.1。
+
+---
+
+## 6. 命令
 
 ```bash
-# 测试（期望 109 passed）
+# 测试（期望 274 passed；改行为要补测试）
 cd gateway && ../.venv/bin/pytest -q
 
-# 起服务（--workers 必须是 1，见「不变量」）
+# ── 模块一：gateway HTTP 服务 ──
 PYTHONUTF8=1 .venv/bin/python -m uvicorn app.main:app --app-dir gateway --host 0.0.0.0 --port 8000
-
-# 端到端冒烟（服务起着时另开终端）
+# 端到端冒烟
 PYTHONUTF8=1 .venv/bin/python scripts/smoke_test.py --base http://127.0.0.1:8000
 
-# 探针：GeniOS API
-.venv/bin/python scripts/probe_genios.py --dry-run
-
-# 飞书长连接（收事件；必须清代理变量）
+# ── 模块二 / 模块三：常驻服务（长连接 + 轮询）──
+# ⚠️ 必须清掉代理变量，WebSocket 走代理连不上
 env -u ALL_PROXY -u all_proxy -u HTTPS_PROXY -u https_proxy \
-  .venv/bin/python scripts/feishu_longconn_probe.py
+  .venv/bin/python scripts/match_service.py
+# 只跑一轮排查用
+... scripts/match_service.py --once --no-listen
 
-# 飞书发消息
-.venv/bin/python scripts/feishu_send.py --to ou_xxx --text "..."
+# ── 生成/更新 GeniOS 工作流导入文件 ──
+.venv/bin/python scripts/create_genios_workflow.py --check        # 模块一
+.venv/bin/python scripts/create_genios_match_workflow.py --check  # 模块二
+# 加 --force 真的写文件；改完提示词/代码节点必须重新导入平台并**重新发布**
+
+# ── 探针 ──
+.venv/bin/python scripts/feishu_card_callback_probe.py   # 卡片回调
+.venv/bin/python scripts/feishu_longconn_probe.py        # 长连接收消息
+
+# ── 直接打飞书 API（排查用，绕过 gateway）──
+lark-cli api GET "/open-apis/bitable/v1/apps/<base>/tables/<tbl>/records" --params '{"page_size":50}'
+# ⚠️ 查询串必须走 --params，不能写进路径（会报 "path must not contain a query string"）
 ```
 
 ---
 
-## 不变量（改代码时不能破坏）
+## 7. 不变量（改代码时不能破坏）
 
 1. **时区一律 `Asia/Shanghai`。** 代码里**拒绝 naive datetime**（`models.UTCDateTime` 直接抛错）。
    这是刻意的，别"修"它。
-2. **`uvicorn --workers` 必须是 1。** 后台 worker、飞书限流器、告警去重都是单进程假设。
-   多 worker 会**重复派发**。`gateway/Dockerfile` 已固定，别改。
+2. **`uvicorn --workers` 必须是 1。** 后台 worker、限流器、告警去重都是单进程假设。多 worker 会**重复派发**。
 3. **`/ingest` 必须幂等。** 同一篇发两次只处理一次（`article_id = sha256(原文链接)`）。
-4. **去重语义是"只补空缺、不覆盖"**（`store.py::_merge_missing`）。
-   别改成覆盖已有值——会把人已经确认的字段冲掉，也会把 `push_status` 打回"未推送"导致重复推送。
-5. **机会类型是固定 4 类**，枚举值逐字取自 `docs/*最终业务字段体系.docx`：
+4. **去重语义是"只补空缺、不覆盖"。** 别改成覆盖 —— 会冲掉人工确认过的字段，
+   也会把 `push_status` 打回"未推送"导致重复推送。
+5. **机会类型是固定 4 类**，逐字取自字段体系文档：
    `竞赛` / `学术与学习交流` / `志愿活动与社会实践` / `校园文体活动`。**不要用简称。**
-6. **测试必须保持全绿。** 改了行为就补测试。
+6. **飞书卡片回调约 3 秒超时** —— 处理必须**异步**（先回执，再后台干，成败另发消息）。
+7. **测试必须保持全绿。** 改了行为就补测试。
 
 ---
 
-## 目录导航：想改什么去哪
+## 8. 目录导航：想改什么去哪
+
+### gateway（机制层 + 通知层）
 
 | 想改 | 去 |
 | --- | --- |
-| 入站逻辑（收到文章后干什么） | `gateway/app/ingest.py` |
-| **换了采集工具**（不再是 We-MP-RSS） | `gateway/app/adapters/` —— 新增一个同签名模块，`/ingest` 主流程不动 |
-| 去重规则 / 历史过滤 | `gateway/app/normalize.py` |
-| 数据库表结构 / 合并策略 | `gateway/app/store.py` + `models.py` |
-| **链路顺序**（派发→取结果→入库→推送） | `gateway/app/worker.py::_process` / `_deliver` |
-| **GeniOS 接口变了** | `gateway/app/genios_client.py`（设计上全部由 `.env` 驱动，优先改配置） |
-| 推送方式 / 推送内容 | `gateway/app/feishu_app.py`、`worker.py::format_notification` |
+| 模块一入站逻辑 | `gateway/app/ingest.py` |
+| 换了采集工具 | `gateway/app/adapters/` —— 新增同签名模块，`/ingest` 主流程不动 |
+| 去重 / 历史过滤 | `gateway/app/normalize.py` |
+| **模块一**链路顺序 | `gateway/app/worker.py::_process` / `_deliver` |
+| **模块二**匹配编排（轮询→派发→推卡→回调分派） | `gateway/app/match_flow.py` |
+| **模块三**对话路由 | `gateway/app/chat_flow.py` —— **`_respond()` 是唯一要改的方法** |
+| 多维表格读写 | `gateway/app/bitable.py` |
+| 卡片版式 | `gateway/app/match_cards.py`、`genios/feishu_cards/` |
+| 飞书发消息 | `gateway/app/feishu_app.py` |
+| **GeniOS 接口** | `gateway/app/genios_client.py`（**全部由 `.env` 驱动，优先改配置**） |
+| 多工作流配置 | `config.py::MatchGeniosProfile`（把第二个工作流的配置伪装成 `genios_*` 喂给同一个 client） |
 | 加配置项 | `gateway/app/config.py` + **同步 `.env.example`** |
-| 提示词 / 抽取字段 | `genios/prompts/step1_extract.md` + `genios/schemas/opportunity.schema.json` |
-| 三层校验 | `genios/code_nodes/parse_and_validate.py`（GeniOS 的 Code 节点） |
+
+### GeniOS 侧（智能层）
+
+| 想改 | 去 |
+| --- | --- |
+| 模块一：提示词 / 抽取字段 | `genios/prompts/step1_extract.md` |
+| 模块一：三层校验 | `genios/code_nodes/parse_and_validate.py` |
+| 模块二：硬筛 + 拼文本 | `genios/code_nodes/match_hard_filter.py` |
+| 模块二：校验 + **防幻觉映射** | `genios/code_nodes/match_validate.py` |
+| 模块二：组装写回入参 | `genios/code_nodes/build_update_payload.py` |
+| 模块二：大模型提示词（**互补优先 / 只回 idx / 两个视角的理由**） | `genios/prompts/step2_match.md` |
+| **重新生成工作流导入文件** | `scripts/create_genios_match_workflow.py --force` |
 
 ---
 
-## 已知陷阱
+## 9. 已知陷阱
 
-### 静默失败（最危险：不报错、日志正常、结果就是不对）
+**这一节是本项目最贵的部分。** 每条都是真踩过的。
 
-| 陷阱 | 特征 |
+### 9.1 静默失败（**最危险**：不报错、日志正常、结果就是不对）
+
+| 陷阱 | 特征 / 修法 |
 | --- | --- |
 | `runId`（提交响应，小写）vs `RunID`（查询请求体，大写） | 填错 → 轮询被静默跳过，`task_id=None` |
-| 轮询把"还在跑"当"已完成" | HiAgent **无论跑完没跑完都返回 `output` 字段**（没跑完是 `null`）。判完成必须看 `status`，不能看有没有 `output` |
-| We-MP-RSS 默认模板不含正文 | 载荷里 `content` 是空串 |
-| We-MP-RSS 默认 `GATHER.CONTENT=False` | 采集时根本不取正文 |
+| 轮询把"还在跑"当"已完成" | HiAgent **无论跑没跑完都返回 `output`**（没跑完是 `null`）。**判完成必须看 `status`** |
+| **`interrupted` 不在终态列表里** | 插件授权过期时工作流停在 `interrupted`。不认它 → **轮询空转到超时，然后把失败当成功** |
+| **`lark.JSON.marshal()` 返回的是字符串**，不是 dict | 直接 `.get()` → `'str' object has no attribute 'get'` → **卡片按钮点了毫无反应** |
+| 飞书**富文本分段** | 文本字段回来是 `[{"text":"王五","type":"text"}]`，**不是字符串**。不压平就把 `{'text':…}` 当姓名 |
+| **人员字段要 `id` 不是 `name`** | `[{"id":"ou_…","name":"谢国辉"}]` —— 按 name 取会把**展示名**当账号，且不报错 |
+| We-MP-RSS 默认模板不含正文 / `GATHER.CONTENT=False` | 载荷里 `content` 是空串 / 根本不取正文 |
+| **代码节点里 `if not cand: continue` 不计数** | 出现"1 个进去、0 个淘汰、0 个留下"这种自相矛盾的结果 |
 
-### 环境
+> **对策（本项目已验证有效）**：**在代码节点里留自诊断** ——
+> 没选出人时，把"候选来自哪个键、几个元素、原始值类型和预览"写进 `issues`。
+> **一次运行就能定位断在哪一段**，不用来回猜。
 
-- **`ALL_PROXY=socks5://…`**：httpx 建 client 会崩。靠 `httpx[socks]` 解决；
-  cloudflared / 飞书长连接必须**清掉代理变量**才能连上。
+### 9.2 飞书平台
+
+| 陷阱 | 说明 |
+| --- | --- |
+| **卡片按钮的 `url` 会被重新编码** | `redirect_uri` 里的 `%2F` 变成 `/` → 查询参数截断 → **20029**。**凡是靠 URL 查询串传参的，都给纯文本让人复制** |
+| **卡片回调约 3 秒超时** | 处理一次邀请要串 5 次 API ≈ 8 秒 → 报「目标回调服务超时未响应」。**必须异步** |
+| **一个应用只允许一条长连接** | 两个进程抢会冲突 → 收消息和收回调**必须同进程** |
+| **open_id 是 per-app 的** | 同一个人在不同应用下 open_id 不同。**用哪个应用的令牌读，就用哪个应用的令牌写** |
+| 表单会**自动把所有字段变成题目** | 系统字段（AI 写的、状态机）要用 `--keep-field` 从表单里拿掉 |
+| 表格**没有 UNIQUE 约束** | 去重只能"查了再写"，有窗口 → **并发要降到 1** |
+| `GET .../records?page_size=50` 写进路径 | 报 `path must not contain a query string`，**查询串必须走 `--params`** |
+
+### 9.3 多维表格 v1 API 的字段写法（**和 v3 不一样**）
+
+| 字段类型 | **v1（gateway 用的）** | v3（CLI 的 `+record-*`） |
+| --- | --- | --- |
+| **单选** | **字符串** `"已匹配"` | 数组 `["已匹配"]` |
+| 多选 | 字符串数组 | 同 |
+| **人员** | `[{"id": "ou_…"}]` | 同 |
+| **单向关联** | **字符串数组** `["rec…"]` | 对象数组 |
+| 文本 | 字符串 | 同 |
+
+> 写错会报 `1254062` / `1254066` / `1254067`，**报错信息里会写正确格式** —— 让它教你。
+
+### 9.4 GeniOS 平台
+
+| 陷阱 | 说明 |
+| --- | --- |
+| 大模型节点输出信封是 `{"raw_output": "<字符串>"}` | 里面的 JSON 要**再解析一次** |
+| 代码节点必须 `def handler(inputs): ... return {...}` | **不能顶层 `return`**，也不能只靠 `print` |
+| 代码节点**前面会被插入约 16 行** | 所以 `from __future__ import` 之类不能用 |
+| Start 节点的数组字段类型写错 | 整个工作流**在 Start 就失败** |
+| `list_object` 必须声明 `SubParameters` | 否则序列化成 `[{}]` |
+| **改了工作流必须重新导入 + 重新发布** | 光导入不发布 = 没生效（本项目踩过） |
+| 智能体要**开「后端服务开关」** | 不开报 401 `API service is disabled` |
+| **插件授权会过期**（实测约 16 小时） | 工作流停在 `interrupted`，**平台会把重新授权链接放在 `msg` 里**。gateway 会自动推给人 |
+
+### 9.5 环境
+
+- **`ALL_PROXY=socks5://…`**：httpx 建 client 会崩（靠 `httpx[socks]` 解决）；
+  **cloudflared / 飞书长连接必须清掉代理变量**才能连上。
 - **Docker Hub 被墙**：`registry-1.docker.io` 不可达（ghcr.io 可达）。
 - **飞连零信任网关**：`coze.nankai.edu.cn` 从外部访问会被 302 到 IAM；
-  但 `/api/proxy/**` 是豁免路径，**我们调 GeniOS 的 API 是通的**。
-
-### GeniOS 平台
-
-- 大模型节点输出信封是 `{"raw_output": "<字符串>"}` —— 里面的 JSON 要**再解析一次**。
-- 代码节点必须 `def handler(inputs): ... return {...}`；**不能顶层 `return`**，也不能只靠 `print`。
-- 代码节点**前面会被插入约 16 行**，所以 `from __future__ import` 之类不能用。
-- Start 节点的 `links` 必须是**数组**类型，否则整个工作流在 Start 就失败。
+  但 `/api/proxy/**` 是豁免路径。
+- **`time.monotonic()` 是"开机以来的秒数"** —— 拿 `0.0` 当初值做冷却判断，
+  **机器刚启动时会被误判成"刚执行过"**。用 `None` 表示"从没执行过"。
 
 ---
 
-## 当前状态与下一步
+## 10. 当前状态与下一步
 
-**已跑通**：完整闭环（真实文章验证过）。
+### ✅ 已交付并验证
 
-**已接入并实测**：
-- 三层校验（`genios/code_nodes/parse_and_validate.py`）—— 工作流链路为 Start → LLM → Code → End
-- GeniOS API 调用、异步轮询和正/负向样例
+| | |
+| --- | --- |
+| 模块一 · 机会发现 | 真实文章全链路验证过（含**一篇文章抽出 2 个机会**） |
+| 模块二 · 组队匹配 | **端到端跑通** —— 收通知 → 填画像 → 发需求 → AI 匹配 → 邀请 → **对方接受** → 通知发起人 |
+| 模块三 · 对话通道 | 长连接收消息 + 回复，**通道已通**（回复内容是占位） |
 
-**仍待完成**：
-- gateway `/ingest` 对新 Code 输出的回归验证
-- 飞书卡片（当前推纯文本）
-- 评测集（`eval/` 有样本，`run_eval.py` 未写）、两段式工作流、多机会文章专项验证
+**测试：274 passed。**
 
-详细任务清单见 `HANDOVER.md` 第九节。
+### ⬜ 待办（按建议顺序）
+
+| # | 事 | 谁 |
+| --- | --- | --- |
+| **1** | **提交** —— 一大批改动还没进 git | [CC] |
+| **2** | **机会搬进多维表格**（建表 + 回填 + worker 改造）—— **模块三的前提**，因为对话读机会只能走插件 | [CC] |
+| **3** | 建 **「对话流型」智能体**（最小版即可）+ 发布 + 开后端服务开关 + 给 API Key | [人] |
+| **4** | 探完**对话 API**（入口 `create_conversation` 已知，只吃 chat/chatFlow/planning 类型），接进 `chat_flow._respond()` | [CC] |
+| **5** | 模块一推送**升级成卡片** + 加「找队友」按钮；【组队需求】加「**关联机会**」字段 | [CC] |
+| **6** | **服务合并**（uvicorn + match_service → 一个进程） | [CC] |
+| 7 | 授权换**应用级凭据**（现在约 16 小时过期一次，靠告警兜底） | [人] |
+| 8 | 飞书卡片**原地更新**（点完把按钮改成"已邀请"） | [CC] |
+| 9 | **评测集**（答辩要用，`eval/` 有样本，`run_eval.py` 未写） | [CC]+[人] |
+
+### ❓ 仍然未知的（别猜，去探）
+
+- 对话流型的**完整 API**（`create_conversation` 之后的下一个参数、发消息的端点）
+- 对话流型开始节点的 **`user_id` 是不是飞书 open_id**
+- 插件授权能不能改成**不过期**的方式
 
 ---
 
-## 工作方式
+## 11. 工作方式
 
-- **改完了要能证明。** 跑了测试贴结果；跑了端到端贴日志。不要只说"已完成"。
-- **每个技术结论写进 `docs/findings.md`**：做了什么、看到什么、结论、证据。
+- **改完了要能证明。** 跑了测试贴结果；跑了端到端贴日志。**不要只说"已完成"。**
+- **每个技术结论写进 `docs/findings.md`**：做了什么 / 看到什么 / 结论 / 证据。
   这是给用户看的账本，也是给下一个 agent 看的。**这个项目的工作纪律就是它。**
-- **卡住了就说。** 尤其是涉及架构分岔的（比如"GeniOS 能不能访问我们"这类），
-  停下来汇报比绕过去更省事。
+- **卡住了就说。** 尤其是涉及架构分岔的（"GeniOS 能不能访问我们"这类），
+  **停下来汇报比绕过去更省事。**
+- **不确定 API 长什么样时，用真实凭据打一下，让平台的报错教你** ——
+  本项目好几个关键形状都是这么拿到的（`userID is empty` → `only support chat/chatFlow/planning`）。
+
+---
+
+## 附：仓库里其他约定
+
+<details>
+<summary>Agent skills（另一台 agent 引入的脚手架，与本项目关系不大）</summary>
+
+- Issue tracker：本地 Markdown，`.scratch/<feature>/`，见 `docs/agents/issue-tracker.md`
+- Triage labels：`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`，
+  见 `docs/agents/triage-labels.md`
+- Domain docs：单上下文仓库，见 `docs/agents/domain.md`
+
+</details>

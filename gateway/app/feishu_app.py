@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from typing import Any
 
@@ -30,6 +31,10 @@ from .config import Settings
 FEISHU_BASE = "https://open.feishu.cn/open-apis"
 # 提前 5 分钟续期，避免边界上刚好过期
 TOKEN_REFRESH_MARGIN_SECONDS = 300.0
+# 姓名基本不变，缓存久一点（一张表单链接重复发时别反复打接口）
+NAME_CACHE_SECONDS = 3600.0
+
+logger = logging.getLogger("gateway.feishu")
 
 
 class FeishuAppError(RuntimeError):
@@ -52,6 +57,7 @@ class FeishuAppClient:
         self._token: str | None = None
         self._token_expires_at: float = 0.0
         self._lock = asyncio.Lock()
+        self._name_cache: dict[str, tuple[str, float]] = {}
 
     # ---------------- 凭据 ----------------
 
@@ -62,7 +68,12 @@ class FeishuAppClient:
     async def _tenant_token(self) -> str:
         """取 tenant_access_token（内存缓存 + 提前续期）。**不打印、不落盘。**"""
         async with self._lock:
-            now = time.monotonic()
+            # ⚠️ **必须用 wall clock，不能用 `time.monotonic()`**。
+            # 实测（2026-10-17）：VM 休眠一夜，`monotonic()` 几乎不涨，
+            # 而真实时间过了 8 小时 —— 缓存一直以为 token 新鲜，
+            # **返回了一个早就过期的 token**，所有飞书调用全部 99991663。
+            # token 的过期是一个真实的墙钟时刻，就该用墙钟比。
+            now = time.time()
             if self._token and now < self._token_expires_at:
                 return self._token
             if not self.configured:
@@ -85,7 +96,16 @@ class FeishuAppClient:
             self._token_expires_at = now + max(ttl - TOKEN_REFRESH_MARGIN_SECONDS, 60.0)
             return token
 
+    async def tenant_token(self) -> str:
+        """对外的取令牌入口（`BitableClient` 等需要同一份身份时用）。"""
+        return await self._tenant_token()
+
     # ---------------- 发送 ----------------
+
+    def invalidate_token(self) -> None:
+        """丢掉缓存的 token —— 服务端说它无效时调。"""
+        self._token = None
+        self._token_expires_at = 0.0
 
     async def send(
         self,
@@ -112,9 +132,68 @@ class FeishuAppClient:
             timeout=20.0,
         )
         data = _safe_json(response)
+        if data.get("code") == 99991663:
+            # 服务端说 token 无效 → 丢掉缓存重来一次（休眠/时钟跳变都可能造成）
+            self.invalidate_token()
+            token = await self._tenant_token()
+            response = await self.http.post(
+                f"{FEISHU_BASE}/im/v1/messages",
+                params={"receive_id_type": id_type_of(destination)},
+                headers={"Authorization": f"Bearer {token}"},
+                json={
+                    "receive_id": destination,
+                    "msg_type": msg_type,
+                    "content": json.dumps(content, ensure_ascii=False),
+                },
+                timeout=20.0,
+            )
+            data = _safe_json(response)
         if data.get("code") not in (0, None):
             raise FeishuAppError(f"发送失败：code={data.get('code')} msg={data.get('msg')}")
         return data
+
+    async def resolve_user_name(self, open_id: str) -> str:
+        """按 `open_id` 查飞书**显示名**（表单预填用）。
+
+        ## ⚠️ 需要通讯录权限，没开就返回空串
+
+        实测（2026-10-17）：没开权限时是
+
+        ```
+        99991672 Access denied. One of the following scopes is required:
+        [contact:contact.base:readonly, contact:contact.access_as_app, …]
+        ```
+
+        **这里刻意不抛异常** —— 名字查不到最多是不预填，
+        绝不能因为查名字把一条正常的回复搞失败。
+        """
+        if not open_id:
+            return ""
+        cached = self._name_cache.get(open_id)
+        if cached and time.time() < cached[1]:
+            return cached[0]
+
+        for attempt in (1, 2):
+            token = await self._tenant_token()
+            response = await self.http.get(
+                f"{FEISHU_BASE}/contact/v3/users/{open_id}",
+                params={"user_id_type": "open_id"},
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=10.0,
+            )
+            data = _safe_json(response)
+            if data.get("code") == 99991663 and attempt == 1:
+                self.invalidate_token()      # token 失效 → 换一个再来一次
+                continue
+            if data.get("code") != 0:
+                logger.info("查通讯录姓名失败（code=%s，不预填）", data.get("code"))
+                return ""
+            user = (data.get("data") or {}).get("user") or {}
+            name = (user.get("name") or "").strip()
+            if name:
+                self._name_cache[open_id] = (name, time.time() + NAME_CACHE_SECONDS)
+            return name
+        return ""
 
     async def send_text(self, text: str, *, target: str | None = None) -> dict[str, Any]:
         return await self.send("text", {"text": text}, target=target)
@@ -122,6 +201,14 @@ class FeishuAppClient:
     async def send_card(self, card: dict[str, Any], *, target: str | None = None) -> dict[str, Any]:
         """发交互卡片。卡片结构见 genios/feishu_cards/。"""
         return await self.send("interactive", card, target=target)
+
+    async def send_post(self, post: dict[str, Any], *, target: str | None = None) -> dict[str, Any]:
+        """发**富文本**消息（`msg_type=post`）。
+
+        和 `send_text` 的区别：能显示**加粗**和**可点链接**。
+        用 `richtext.markdown_to_post` 从模型返回的 Markdown 转过来。
+        """
+        return await self.send("post", post, target=target)
 
 
 def _safe_json(response: httpx.Response) -> Any:

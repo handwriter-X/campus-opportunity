@@ -170,3 +170,34 @@ class OpportunitySource(Base):
     )
 
     opportunity: Mapped[Opportunity] = relationship(back_populates="sources")
+
+
+class ChatSession(Base):
+    """飞书 `open_id` ↔ GeniOS 的 `AppConversationID`。
+
+    ## 为什么这个放进本地库，而业务数据不放（决策 D9）
+
+    D9 说"业务数据一律进多维表格"。**这一条不是业务数据，是管道状态** ——
+    它记的是"这个人正在哪个会话里聊"，好让 GeniOS 那边续得上多轮上下文。
+    丢了顶多让人重新开一个会话，不影响任何业务事实。
+
+    ## 为什么需要它
+
+    飞书消息事件只给 `open_id`（谁发的），不带会话 id；
+    而 GeniOS 的 `chat_query` **必须**带一个 `AppConversationID`。
+    这一层就是把两者对起来，并在**首次**见到某个人时替 TA 建一个会话。
+    """
+
+    __tablename__ = "chat_sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    open_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    conversation_id: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[dt.datetime] = mapped_column(
+        UTCDateTime, default=lambda: dt.datetime.now(UTC)
+    )
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        UTCDateTime,
+        default=lambda: dt.datetime.now(UTC),
+        onupdate=lambda: dt.datetime.now(UTC),
+    )
