@@ -127,6 +127,21 @@ class Feishu:
             page_token = payload.get("page_token") or ""
         return rows
 
+    async def update_record(
+        self, client: httpx.AsyncClient, table_id: str, record_id: str,
+        fields: dict[str, Any],
+    ) -> None:
+        response = await client.put(
+            f"{FEISHU_BASE}/bitable/v1/apps/{self.config.app_token}"
+            f"/tables/{table_id}/records/{record_id}",
+            headers={"Authorization": f"Bearer {await self.token(client)}"},
+            json={"fields": fields},
+            timeout=20.0,
+        )
+        data = response.json()
+        if data.get("code") != 0:
+            raise RuntimeError(f"更新失败：{data.get('code')} {data.get('msg')}")
+
     async def create_record(
         self, client: httpx.AsyncClient, table_id: str, fields: dict[str, Any]
     ) -> str:
@@ -171,10 +186,8 @@ class Feishu:
             rows = await self.list_records(client, self.config.profile_table)
         except Exception:
             return ""
-        for row in rows:
-            if open_id in _ids_of(row.get("飞书账号")) or open_id in _ids_of(row.get("创建人")):
-                return flat(row.get("姓名"))
-        return ""
+        row = find_profile_row(rows, open_id)
+        return flat(row.get("姓名")) if row else ""
 
     async def open_id_of_login_code(self, client: httpx.AsyncClient, code: str) -> str:
         """小程序 `Taro.login()` 的 code → open_id。
@@ -228,6 +241,16 @@ def as_ms(value: Any) -> int | None:
     return None
 
 
+def _as_int(value: Any) -> int:
+    """飞书数字字段 → int。空值给 0（前端直接显示，不用再判空）。"""
+    if value in (None, ""):
+        return 0
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return 0
+
+
 _CJK_SPACE = re.compile(r"\s+")
 
 
@@ -263,18 +286,25 @@ def to_team(row: dict[str, Any]) -> dict[str, Any]:
     ⚠️ 小程序那边**没有 deadline 会整条丢掉** —— 所以 `deadline` 给 `None`，
     前端必须改成"缺就当长期有效"（`mini/src/services/team.ts`）。
     """
+    status = clean(flat(row.get("状态")))
     return {
         "id": row.get("record_id", ""),
         "name": clean(flat(row.get("需求标题"))),
         "roles": clean(flat(row.get("需要什么技能"))) or "待定",
         "deadline": as_ms(row.get("截止时间")),
-        "status": clean(flat(row.get("状态"))),
-        "closed": clean(flat(row.get("状态"))) in ("已结束",),
+        "status": status,
+        "closed": status in ("已结束",),
+        # 人数：小程序列表上的「已集结 x 人 / 需要招募 x 人」
+        # ⚠️ 之前后端没给，前端就永远是 0 —— 一眼假。
+        "currentCount": _as_int(row.get("已加入人数")),
+        "recruitCount": _as_int(row.get("招募人数")),
         "publisherName": clean(flat(row.get("发起人"))),
         "description": clean(flat(row.get("预期目标"))),
         "campus": clean(flat(row.get("所在校区"))),
         "weeklyHours": clean(flat(row.get("期望每周投入"))),
         "projectType": clean(flat(row.get("项目类型"))),
+        # 关联的机会（单向关联 →【机会汇总】），详情页可以跳过去看原文
+        "opportunityId": (linked_record_ids(row.get("关联机会")) or [""])[0],
     }
 
 
@@ -349,7 +379,8 @@ async def teams_list(
     _require_headers(x_agent_id, authorization)
     async with httpx.AsyncClient(timeout=30.0) as client:
         rows = await feishu.list_records(client, config.request_table)
-    items = [t for t in (to_team(r) for r in rows) if t["name"]]
+        items = [t for t in (to_team(r) for r in rows) if t["name"]]
+        await _attach_opportunities(client, items)
     return _ok(items)
 
 
@@ -363,10 +394,37 @@ async def team_detail(
     wanted = str(payload.get("id") or "")
     async with httpx.AsyncClient(timeout=30.0) as client:
         rows = await feishu.list_records(client, config.request_table)
-    for row in rows:
-        if row.get("record_id") == wanted:
-            return _ok(to_team(row))
+        for row in rows:
+            if row.get("record_id") == wanted:
+                team = to_team(row)
+                await _attach_opportunities(client, [team])
+                return _ok(team)
     raise HTTPException(status_code=404, detail="没有这条需求")
+
+
+async def _attach_opportunities(
+    client: httpx.AsyncClient, teams: list[dict[str, Any]]
+) -> None:
+    """把 `关联机会` 的 record_id 换成**名字 + 链接**（原地改）。
+
+    小程序拿到的不能只是一个 `rec…` —— 那对用户没有意义。
+    """
+    wanted = {t.get("opportunityId") for t in teams if t.get("opportunityId")}
+    if not wanted or not config.opportunity_table:
+        return
+    try:
+        rows = await feishu.list_records(client, config.opportunity_table)
+    except Exception as exc:  # noqa: BLE001 —— 关联信息拿不到不影响主列表
+        logger.warning("读【机会汇总】失败（不附关联信息）：%s", exc)
+        return
+    index = {row.get("record_id"): row for row in rows}
+    for team in teams:
+        row = index.get(team.get("opportunityId") or "")
+        if not row:
+            continue
+        team["opportunityName"] = clean(flat(row.get("机会名称")))
+        team["opportunityUrl"] = (clean(flat(row.get("报名链接")))
+                                  or clean(flat(row.get("原文链接"))))
 
 
 @app.post("/v1/teams/apply")
@@ -446,6 +504,7 @@ async def team_apply(
                 invite_record_id=invite_id,
                 campus=clean(flat(request_row.get("所在校区"))),
                 hours=clean(flat(request_row.get("期望每周投入"))),
+                applicant_open_id=open_id,
             )
             try:
                 await feishu.send_card(client, owner_ids[0], apply_card)
@@ -453,6 +512,135 @@ async def team_apply(
                 logger.warning("申请通知卡片发送失败（申请已写入）：%s", exc)
 
     return _ok({"message": "申请已发送，TA 会在飞书里收到通知"})
+
+
+# ============================================================
+# 我的画像
+# ============================================================
+
+
+async def _identity(client: httpx.AsyncClient, payload: dict[str, Any]) -> str:
+    """小程序 `Taro.login()` 的 code → open_id。拿不到就返回空串。"""
+    code = str(payload.get("userCode") or "")
+    if not code:
+        return ""
+    try:
+        return await feishu.open_id_of_login_code(client, code)
+    except Exception as exc:  # noqa: BLE001 —— 身份拿不到要如实告诉前端
+        logger.warning("登录校验失败：%s", exc)
+        return ""
+
+
+@app.post("/v1/profile")
+async def profile_get(
+    payload: dict[str, Any],
+    x_agent_id: str | None = Header(default=None, alias="X-Agent-Id"),
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """读自己的画像。`reason` 让前端能区分"开发者工具没身份"和"还没建档"。"""
+    _require_headers(x_agent_id, authorization)
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        open_id = await _identity(client, payload)
+        if not open_id:
+            return _ok({"profile": None, "reason": "no_identity"})
+        rows = await feishu.list_records(client, config.profile_table)
+        row = find_profile_row(rows, open_id)
+        if row is None:
+            return _ok({"profile": None, "reason": "not_found"})
+        return _ok({"profile": to_profile(row), "reason": ""})
+
+
+@app.post("/v1/profile/update")
+async def profile_update(
+    payload: dict[str, Any],
+    x_agent_id: str | None = Header(default=None, alias="X-Agent-Id"),
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """保存画像 —— **有就改那一行，没有才新建**。
+
+    这是「小程序负责修改画像」的落点：飞书表单只能新增，改一次多一行。
+    """
+    _require_headers(x_agent_id, authorization)
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        open_id = await _identity(client, payload)
+        if not open_id:
+            raise HTTPException(status_code=401, detail="拿不到你的飞书身份，请在真机上使用")
+
+        fields = profile_fields(payload.get("fields") or {})
+        if not fields:
+            raise HTTPException(status_code=400, detail="没有要保存的内容")
+
+        rows = await feishu.list_records(client, config.profile_table)
+        row = find_profile_row(rows, open_id)
+        if row is not None:
+            await feishu.update_record(
+                client, config.profile_table, row.get("record_id", ""), fields
+            )
+            return _ok({"ok": True, "created": False})
+
+        fields["飞书账号"] = [{"id": open_id}]
+        await feishu.create_record(client, config.profile_table, fields)
+        return _ok({"ok": True, "created": True})
+
+
+# 画像表里允许小程序读写的列（**白名单** —— 别让人往表里塞任意列）
+PROFILE_COLUMNS = {
+    "name": "姓名",
+    "grade": "年级",
+    "college": "学院",
+    "campus": "所在校区",
+    "skills": "技能标签",
+    "weeklyHours": "每周可投入",
+    "experience": "过往经历",
+}
+
+
+def find_profile_row(rows: list[dict[str, Any]], open_id: str) -> dict[str, Any] | None:
+    """按 open_id 找到这个人的画像行。
+
+    ⚠️ **两遍，顺序不能反**。
+    `创建人` 只有在"加字段之后新提交"的行上才准 —— 加字段那一刻，
+    飞书会把**历史行**全部回填成字段创建者（实测：张三/李四那几行全挂上了谢国辉）。
+    一遍同时匹配两者 → 谁提交都先撞到「张三」。
+    """
+    for row in rows:
+        if open_id in _ids_of(row.get("飞书账号")):
+            return row
+    for row in rows:
+        if not _ids_of(row.get("飞书账号")) and open_id in _ids_of(row.get("创建人")):
+            return row
+    return None
+
+
+def to_profile(row: dict[str, Any]) -> dict[str, Any]:
+    """画像行 → 小程序契约。"""
+    skills = row.get("技能标签")
+    items = skills if isinstance(skills, list) else ([skills] if skills else [])
+    return {
+        "name": clean(flat(row.get("姓名"))),
+        "grade": clean(flat(row.get("年级"))),
+        "college": clean(flat(row.get("学院"))),
+        "campus": clean(flat(row.get("所在校区"))),
+        "skills": [clean(flat(x)) for x in items if clean(flat(x))],
+        "weeklyHours": clean(flat(row.get("每周可投入"))),
+        "experience": clean(flat(row.get("过往经历"))),
+    }
+
+
+def profile_fields(payload: dict[str, Any]) -> dict[str, Any]:
+    """小程序提交的字段 → 飞书表字段（只认白名单）。"""
+    out: dict[str, Any] = {}
+    for key, column in PROFILE_COLUMNS.items():
+        if key not in payload:
+            continue
+        value = payload[key]
+        if column == "技能标签":
+            items = value if isinstance(value, list) else [value]
+            out[column] = [clean(str(x))[:20] for x in items if str(x).strip()][:10]
+        else:
+            limit = 800 if column == "过往经历" else 60
+            out[column] = clean(str(value if value is not None else ""))[:limit]
+    return out
 
 
 def linked_record_ids(value: Any) -> list[str]:

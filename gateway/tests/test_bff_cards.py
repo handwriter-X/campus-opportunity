@@ -44,28 +44,26 @@ class TestApplyCard:
 
     def test_buttons_match_gateway_actions(self):
         """⚠️ 这两个字符串**必须**和 `gateway/app/match_cards.py` 里的常量一致。"""
-        card = _card()
-        buttons = [b for el in card["elements"] if el["tag"] == "action"
-                   for b in el["actions"]]
-        actions = {b["value"]["action"]: b["value"]["invite_record_id"] for b in buttons}
+        from tests.card_helpers import button_value, buttons
+
+        actions = {button_value(b)["action"]: button_value(b)["invite_record_id"]
+                   for b in buttons(_card())}
         assert actions == {ACTION_ACCEPT: "rec_INV_1", ACTION_DECLINE: "rec_INV_1"}
 
     def test_buttons_carry_apply_source(self):
         """⚠️ 少了 `source: "apply"`，gateway 会按"邀请"方向校验 →
         发起人点「同意」会被回「这条邀请不是发给你的」。"""
-        card = _card()
-        for el in card["elements"]:
-            if el["tag"] == "action":
-                for b in el["actions"]:
-                    assert b["value"]["source"] == "apply"
+        from tests.card_helpers import button_value, buttons
+
+        for b in buttons(_card()):
+            assert button_value(b)["source"] == "apply"
 
     def test_buttons_carry_no_url(self):
         """卡片按钮必须是**回传**，不是跳转 —— 否则点完什么都不发生。"""
-        card = _card()
-        for el in card["elements"]:
-            if el["tag"] == "action":
-                for b in el["actions"]:
-                    assert "url" not in b
+        from tests.card_helpers import button_url, buttons
+
+        for b in buttons(_card()):
+            assert button_url(b) == ""
 
     def test_long_title_is_truncated(self):
         card = _card(title="非常长的项目名称" * 5)
